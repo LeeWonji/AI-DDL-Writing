@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-DDL 글쓰기</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&family=Nunito:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Nunito', Arial, sans-serif; margin: 20px; background: linear-gradient(160deg, #f5ede5 0%, #ede0d4 50%, #e8d9cc 100%); min-height: 100vh; }
+        .container { max-width: 1000px; margin: auto; padding: 24px; border: 1px solid #c5d4e8; border-radius: 16px; background: rgba(255,255,255,0.85); box-shadow: 0 4px 20px rgba(0,0,0,0.06); display: flex; flex-direction: column; gap: 20px; }
+        .controls-row { display: flex; gap: 10px; align-items: center; flex-wrap: nowrap; }
+        .controls-row label { margin-top: 0; white-space: nowrap; }
+        .controls-row select { width: auto; min-width: 140px; border-radius: 10px; border-color: #b8d0e8; }
+        .main-row { display: flex; gap: 16px; align-items: stretch; margin-top: 1.5em; }
+        .main-row .writing-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        .main-row .button-col { display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .main-row .button-col button { margin: 0; }
+        .main-row .feedback-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        #kwic-section { width: 100%; margin-top: 16px; }
+        #kwic-output { font-family: Georgia, 'Times New Roman', serif; font-size: 1.05em; color: #333; background-color: #e8ecf0; padding: 14px; border-radius: 12px; border: 1px solid #d0d8e4; }
+        textarea { flex-grow: 1; min-height: 200px; border-radius: 12px; border-color: #d4c4a0; }
+        #writing { font-size: 1.5em; background-color: #fff9c4; }
+        #feedback-output { flex-grow: 1; margin-top: 0; }
+        .page-title { font-family: 'Jua', sans-serif; font-size: 2rem; color: #2c3e6b; text-align: center; margin-bottom: 0; }
+        .page-tagline { text-align: center; font-size: 0.95rem; color: #5a6b8a; margin: 0.2em 0 1em 0; }
+        .section-title { font-family: 'Jua', sans-serif; font-size: 1.3rem; font-weight: normal; color: #2c3e6b; margin: 0 0 8px 0; }
+        label { display: block; margin-top: 10px; font-weight: bold; }
+        input[type="file"], input[type="text"], textarea, select { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; }
+        button { background: linear-gradient(180deg, #5c6bc0 0%, #4a56a8 100%); color: white; padding: 12px 20px; border: none; border-radius: 12px; cursor: pointer; margin-top: 10px; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 1rem; box-shadow: 0 2px 8px rgba(92,107,192,0.3); }
+        button:hover { background: linear-gradient(180deg, #6c7bd0 0%, #5a66b8 100%); box-shadow: 0 3px 12px rgba(92,107,192,0.4); }
+        button:disabled { opacity: 0.8; cursor: not-allowed; }
+        #feedback-output { margin-top: 20px; padding: 15px; background-color: #f5f0ff; border: 1px solid #e0d8f0; border-radius: 12px; white-space: pre-wrap; }
+        .error { color: red; }
+        mark { background-color: #fff59d; padding: 0 3px; border-radius: 4px; }
+        .corrected-hint { margin: 0 0 8px 0; font-size: 14px; color: #555; }
+        .feedback-disclaimer { margin: 10px 0 0 0; font-size: 13px; color: #777; }
+        .feedback-text { white-space: pre-wrap; line-height: 1.6; padding: 15px; background: linear-gradient(135deg, #faf5ff 0%, #f0f4ff 100%); border: 1px solid #e0d8f0; border-radius: 12px; }
+        .feedback-error { font-weight: bold; cursor: help; border-radius: 4px; }
+        .feedback-error.key-expr { background-color: #fff59d; cursor: pointer; padding: 0 2px; }
+        .feedback-error.key-expr:hover { background-color: #ffeb3b; }
+        #kwic-section.kwic-hidden { display: none; }
+        .kwic-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+        .kwic-header h2 { margin: 0; }
+        .kwic-toggle { font-size: 13px; padding: 6px 12px; border-radius: 8px; border: 1px solid #c5d4e8; background: #fff; cursor: pointer; color: #2c3e6b; }
+        .kwic-toggle:hover { background: #f0f4ff; }
+        #kwic-section.kwic-collapsed .kwic-content { display: none; }
+        .top-banner { display: inline-flex; align-items: center; gap: 8px; width: fit-content; margin-bottom: 12px; padding: 8px 14px; background: linear-gradient(135deg, #5c6bc0 0%, #4a56a8 100%); color: white; text-decoration: none; font-family: 'Jua', sans-serif; font-size: 1.2rem; border-radius: 0 0 12px 0; box-shadow: 0 2px 10px rgba(92,107,192,0.35); }
+        .top-banner:hover { background: linear-gradient(135deg, #6c7bd0 0%, #5a66b8 100%); color: white; }
+    </style>
+</head>
+<body>
+    <a class="top-banner" href="https://ai-ddl.onrender.com/" target="_blank" rel="noopener noreferrer">🕵️ AI-DDL</a>
+    <div class="container">
+        <h1 class="page-title">🔍 AI-DDL 글쓰기</h1>
+        <p class="page-tagline">영어 단서를 찾고, 문장을 탐정처럼 고쳐보세요!</p>
+
+        <form id="feedbackForm">
+            <div class="controls-row">
+                <label for="grade">학년:</label>
+                <select id="grade" required>
+                    <option value="">학년 선택</option>
+                    <option value="3">3학년</option>
+                    <option value="4">4학년</option>
+                    <option value="5">5학년</option>
+                    <option value="6">6학년</option>
+                </select>
+
+                <label for="publisher">출판사:</label>
+                <select id="publisher" required>
+                    <option value="">출판사 선택</option>
+                </select>
+
+                <label for="unit">단원:</label>
+                <select id="unit" required>
+                    <option value="">단원 선택</option>
+                </select>
+            </div>
+
+            <div class="main-row">
+                <div class="writing-col">
+                    <label for="writing" class="section-title">✏️ 끄적끄적</label>
+                    <textarea id="writing" placeholder="여기에 글을 입력하세요..." required></textarea>
+                </div>
+                <div class="button-col">
+                    <button type="submit" id="feedbackSubmitBtn">단서 확인하기</button>
+                </div>
+                <div class="feedback-col">
+                    <h2 class="section-title">👩‍🏫 AI 피드백</h2>
+                    <p class="corrected-hint">
+                        • <strong>굵은</strong> 글씨 위에 마우스를 올리면 고친 형태가 보여요.<br>
+                        • <mark>노란색</mark>은 이 단원의 핵심 표현을 틀린 거예요. 클릭해보세요!
+                    </p>
+                    <div id="feedback-text-output" class="feedback-text"></div>
+                    <p class="feedback-disclaimer">⚠️ AI도 가끔 실수를 한답니다.</p>
+                </div>
+            </div>
+
+            <div id="kwic-section" class="kwic-hidden">
+                <div class="kwic-header">
+                    <h2 class="section-title">📖 이 단원 단서 예문</h2>
+                    <button type="button" class="kwic-toggle" id="kwic-toggle-btn" aria-label="접기">접기</button>
+                </div>
+                <div class="kwic-content">
+                    <div id="kwic-output" class="feedback-output-box"></div>
+                </div>
+            </div>
+        </form>
+
+    </div>
+
+    <script>
+        const publishers_34 = [
+            'YBM(김)',
+            'YBM(최)',
+            '동아(윤)',
+            '미래엔(강)',
+            '아이스크림(박)',
+            '천재(김)',
+            '천재(이)',
+            '천재(함)'
+        ];
+        const publishers_56 = [
+            'YBM(김)',
+            'YBM(최)',
+            '동아(정)',
+            '미래엔(강)',
+            '비상(우)',
+            '아이스크림(박)',
+            '천재(김)',
+            '천재(이)',
+            '천재(함)'
+        ];
+
+        function getPublisherListByGrade(grade) {
+            if (grade === '3' || grade === '4') return publishers_34;
+            if (grade === '5' || grade === '6') return publishers_56;
+            return [];
+        }
+
+        function getUnitCountByGrade(grade) {
+            if (grade === '3' || grade === '4') return 10;
+            if (grade === '5' || grade === '6') return 12;
+            return 0;
+        }
+
+        function setOptions(selectEl, placeholderText, options, valueFormatter) {
+            const current = selectEl.value;
+            selectEl.innerHTML = '';
+            const ph = document.createElement('option');
+            ph.value = '';
+            ph.textContent = placeholderText;
+            selectEl.appendChild(ph);
+
+            options.forEach((opt, idx) => {
+                const o = document.createElement('option');
+                o.value = valueFormatter ? valueFormatter(opt, idx) : opt;
+                o.textContent = opt;
+                selectEl.appendChild(o);
+            });
+
+            // keep selection if still valid
+            if ([...selectEl.options].some(o => o.value === current)) {
+                selectEl.value = current;
+            }
+        }
+
+        function escapeHtml(text) {
+            if (text == null) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function escapeAttr(text) {
+            if (text == null) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        /** Build annotated HTML from original_text and error_list (each: error_span, correction, is_key_expression). */
+        function buildFeedbackHtml(originalText, errorList) {
+            if (!originalText) return '';
+            if (!errorList || errorList.length === 0) return escapeHtml(originalText).replace(/\n/g, '<br>');
+
+            let html = '';
+            let lastEnd = 0;
+            var text = originalText;
+            if (typeof text.normalize === 'function') text = text.normalize('NFC');
+
+            for (const err of errorList) {
+                var span = (err.error_span || '').trim();
+                if (!span) continue;
+                if (typeof span.normalize === 'function') span = span.normalize('NFC');
+                var idx = text.indexOf(span, lastEnd);
+                if (idx === -1) continue;
+
+                html += escapeHtml(text.slice(lastEnd, idx)).replace(/\n/g, '<br>');
+                const isKeyExpr = !!err.is_key_expression;
+                const cls = 'feedback-error' + (isKeyExpr ? ' key-expr' : '');
+                const titleText = isKeyExpr ? '단서 예문 참고하기' : (err.correction != null ? String(err.correction) : '');
+                const dataCorrection = isKeyExpr ? '' : (err.correction != null ? String(err.correction) : '');
+                html += '<span class="' + escapeAttr(cls) + '" data-correction="' + escapeAttr(dataCorrection) + '" title="' + escapeAttr(titleText) + '">';
+                html += escapeHtml(span);
+                html += '</span>';
+                lastEnd = idx + span.length;
+            }
+            html += escapeHtml(text.slice(lastEnd)).replace(/\n/g, '<br>');
+            return html;
+        }
+
+        // dynamic dropdowns
+        const gradeSelect = document.getElementById('grade');
+        const publisherSelect = document.getElementById('publisher');
+        const unitSelect = document.getElementById('unit');
+
+        function refreshPublisherAndUnits() {
+            const grade = gradeSelect.value;
+            const pubs = getPublisherListByGrade(grade);
+            setOptions(publisherSelect, '출판사 선택', pubs);
+
+            const unitCount = getUnitCountByGrade(grade);
+            const units = Array.from({ length: unitCount }, (_, i) => `${i + 1}단원`);
+            setOptions(unitSelect, '단원 선택', units, (_label, idx) => `Unit ${idx + 1}`);
+        }
+
+        gradeSelect.addEventListener('change', refreshPublisherAndUnits);
+        refreshPublisherAndUnits();
+
+        (function () {
+            var kwicSection = document.getElementById('kwic-section');
+            var kwicToggleBtn = document.getElementById('kwic-toggle-btn');
+            if (kwicSection && kwicToggleBtn) {
+                kwicToggleBtn.addEventListener('click', function () {
+                    if (kwicSection.classList.contains('kwic-collapsed')) {
+                        kwicSection.classList.remove('kwic-collapsed');
+                        kwicToggleBtn.textContent = '접기';
+                        kwicToggleBtn.setAttribute('aria-label', '접기');
+                    } else {
+                        kwicSection.classList.add('kwic-collapsed');
+                        kwicToggleBtn.textContent = '펼치기';
+                        kwicToggleBtn.setAttribute('aria-label', '펼치기');
+                    }
+                });
+            }
+        })();
+
+        document.getElementById('feedbackForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const grade = document.getElementById('grade').value;
+            const publisher = document.getElementById('publisher').value;
+            const unit = document.getElementById('unit').value;
+            const writing = document.getElementById('writing').value;
+            const submitBtn = document.getElementById('feedbackSubmitBtn');
+            const feedbackTextOutput = document.getElementById('feedback-text-output');
+            const kwicSection = document.getElementById('kwic-section');
+            const kwicOutput = document.getElementById('kwic-output');
+
+            feedbackTextOutput.innerHTML = '';
+            kwicOutput.innerHTML = '';
+            kwicSection.classList.add('kwic-hidden');
+            submitBtn.textContent = '단서 확인 중...';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await fetch('/feedback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ grade, publisher, unit, writing })
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    const feedback = result.feedback;
+                    const errorList = feedback.error_list || [];
+                    const originalText = feedback.original_text || '';
+
+                    feedbackTextOutput.innerHTML = buildFeedbackHtml(originalText, errorList);
+
+                    kwicOutput.innerHTML = (feedback.kwic_examples || '').replace(/\*\*/g, '').replace(/\n/g, '<br>');
+
+                    feedbackTextOutput.querySelectorAll('.feedback-error.key-expr').forEach(function (el) {
+                        el.addEventListener('click', function () {
+                            kwicSection.classList.remove('kwic-hidden');
+                            kwicSection.classList.remove('kwic-collapsed');
+                            var btn = document.getElementById('kwic-toggle-btn');
+                            if (btn) { btn.textContent = '접기'; btn.setAttribute('aria-label', '접기'); }
+                            kwicSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        });
+                    });
+
+                    submitBtn.textContent = '단서 도착!';
+                    submitBtn.disabled = false;
+                } else {
+                    console.error('Error response from server:', result);
+                    feedbackTextOutput.innerHTML = escapeHtml(`오류: ${result.error || JSON.stringify(result)}`);
+                    submitBtn.textContent = '단서 확인하기';
+                    submitBtn.disabled = false;
+                }
+            } catch (error) {
+                console.error('Network or parsing error:', error);
+                feedbackTextOutput.innerHTML = escapeHtml(`네트워크 오류: ${error.message}`);
+                submitBtn.textContent = '단서 확인하기';
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
