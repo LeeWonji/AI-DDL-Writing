@@ -1,0 +1,55 @@
+major,code,mid,sub,label_en,desc_en,notes
+Form,FM,Morphology,,Form: Morphology,Morphological form error (inflection/derivation within word),Use for incorrect morphological form not covered under specific grammar tags.
+Form,FS,Spelling,,Form: Spelling,Spelling error,Orthography only; meaning intended is clear.
+Grammar,GDD,Determiner,Demonstrative,Determiner: Demonstrative,Incorrect demonstrative determiner use,
+Grammar,GDO,Determiner,Possessive,Determiner: Possessive,Incorrect possessive determiner use,
+Grammar,GDI,Determiner,Indefinite,Determiner: Indefinite,Incorrect indefinite determiner use,
+Grammar,GDT,Determiner,Other,Determiner: Other,Incorrect other determiner use,
+Grammar,GA,Articles,,Articles,Article use error,
+Grammar,GADJCS,Adjective,Comparative/Superlative,Adjective: Comparative/Superlative,Comparative/superlative formation or use error,
+Grammar,GADJN,Adjective,Number,Adjective: Number,Adjective number agreement error (rare),Keep if manual uses it; might be infrequent in elementary writing.
+Grammar,GADJO,Adjective,Order,Adjective: Order,Adjective order error,
+Grammar,GADVO,Adverb,Order,Adverb: Order,Adverb placement/order error,
+Grammar,GNC,Noun,Case,Noun: Case,"Noun case error (e.g., genitive)",
+Grammar,GNN,Noun,Number,Noun: Number,Noun number error (plural marking etc.),For countable/uncountable selection see XNUC (Lexico-grammar) if that is the intended category.
+Grammar,GPD,Pronoun,Demonstrative,Pronoun: Demonstrative,Demonstrative pronoun error,
+Grammar,GPP,Pronoun,Personal,Pronoun: Personal,Personal pronoun error,
+Grammar,GPO,Pronoun,Possessive,Pronoun: Possessive,Possessive pronoun error,
+Grammar,GPI,Pronoun,Indefinite,Pronoun: Indefinite,Indefinite pronoun error,
+Grammar,GPF,Pronoun,Reflexive/Reciprocal,Pronoun: Reflexive/Reciprocal,Reflexive/reciprocal pronoun error,
+Grammar,GPR,Pronoun,Relative/Interrogative,Pronoun: Relative/Interrogative,Relative/interrogative pronoun error,
+Grammar,GPU,Pronoun,Unclear reference,Pronoun: Unclear reference,Unclear pronominal reference,Discourse-level ambiguity; may require context.
+Grammar,GVAUX,Verb,Auxiliaries,Verb: Auxiliaries,Auxiliary verb use error,
+Grammar,GVM,Verb,Morphology,Verb: Morphology,Verb morphology (inflection) error,"If specifically subject-verb agreement, prefer GVN."
+Grammar,GVN,Verb,Number,Verb: Number,Subject?“verb number agreement error,
+Grammar,GVNF,Verb,Non-Finite/Finite,Verb: Non-finite/Finite,Finite vs non-finite form selection error,
+Grammar,GVT,Verb,Tense,Verb: Tense,Tense selection error,
+Grammar,GVV,Verb,Voice,Verb: Voice,Voice (active/passive) error,
+Grammar,GWC,Word Class,,Word class,Incorrect word class choice,
+Lexis,LCC,Conjunction,Coordinating,Conjunction: Coordinating,Coordinating conjunction error,
+Lexis,LCLC,"Connector, Logical",Complex,Logical connector: Complex,Complex logical connector error,
+Lexis,LCLS,"Connector, Logical",Single,Logical connector: Single,Single-word logical connector error,
+Lexis,LCS,Conjunction,Subordinating,Conjunction: Subordinating,Subordinating conjunction error,
+Lexis,LP,Lexical Phrase,,Lexical phrase,Lexical phrase error,
+Lexis,LSADJ,Lexical Single,Adjective,Lexical single: Adjective,Single adjective lexical choice error,
+Lexis,LSADV,Lexical Single,Adverb,Lexical single: Adverb,Single adverb lexical choice error,
+Lexis,LSN,Lexical Single,Noun,Lexical single: Noun,Single noun lexical choice error,
+Lexis,LSPR,Lexical Single,Preposition,Lexical single: Preposition,Single preposition lexical choice error,"If dependent on specific head word, consider X*PR tags."
+Lexis,LSV,Lexical Single,Verb,Lexical single: Verb,Single verb lexical choice error,
+Punctuation,QC,,Confusion,Punctuation: Confusion,Confusion of punctuation marks,
+Punctuation,QL,,Lexical,Punctuation: Lexical,Punctuation vs lexical item confusion,
+Punctuation,QM,,Missing,Punctuation: Missing,Missing punctuation,
+Punctuation,QR,,Redundant,Punctuation: Redundant,Redundant punctuation,
+Word,WM,,Missing,Word missing,Missing word(s),"If the missing item is clearly an article/determiner/pronoun/aux etc, prefer the relevant Grammar tag."
+Word,WO,,Order,Word order,Incorrect word order,
+Word,WR,,Redundant,Word redundant,Redundant word(s),
+Lexico-Grammar,XADJCO,Adjective,Complementation,Adj complementation,Adjective complementation pattern error,
+Lexico-Grammar,XADJPR,Adjective,Dependent Preposition,Adj dependent preposition,Wrong dependent preposition after adjective,
+Lexico-Grammar,XADVPR,Adverb,Dependent Preposition,Adv dependent preposition,Wrong dependent preposition after adverb,
+Lexico-Grammar,XNCO,Noun,Complementation,Noun complementation,Noun complementation pattern error,
+Lexico-Grammar,XNPR,Noun,Dependent Preposition,Noun dependent preposition,Wrong dependent preposition after noun,
+Lexico-Grammar,XNUC,Noun,Uncountable/Countable,Countable/uncountable,Countable vs uncountable noun error,
+Lexico-Grammar,XPRCO,Preposition,Complementation,Prep complementation,Preposition complementation pattern error,
+Lexico-Grammar,XVCO,Verb,Complementation,Verb complementation,Verb complementation pattern error,
+Lexico-Grammar,XVPR,Verb,Dependent Preposition,Verb dependent preposition,Wrong dependent preposition after verb,
+Infelicities,Z,,,Infelicities,Infelicitous but not strictly ungrammatical,Useful to separate style/awkwardness from clear errors.

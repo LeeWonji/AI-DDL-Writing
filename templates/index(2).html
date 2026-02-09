@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-DDL 글쓰기</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&family=Nunito:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Nunito', Arial, sans-serif; margin: 20px; background: linear-gradient(160deg, #f5ede5 0%, #ede0d4 50%, #e8d9cc 100%); min-height: 100vh; }
+        .container { max-width: 1000px; margin: auto; padding: 24px; border: 1px solid #c5d4e8; border-radius: 16px; background: rgba(255,255,255,0.85); box-shadow: 0 4px 20px rgba(0,0,0,0.06); display: flex; flex-direction: column; gap: 20px; }
+        .memo-row { display: flex; gap: 16px; align-items: stretch; margin-top: 1.5em; }
+        .memo-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        .memo-col label { margin-bottom: 8px; }
+        .memo-box { flex: 1; min-height: 200px; font-size: 1.1em; padding: 14px; border-radius: 12px; border: 1px solid #d4c4a0; background-color: #fff9c4; box-sizing: border-box; }
+        textarea.memo-box { resize: vertical; font-family: inherit; }
+        .button-row { display: flex; justify-content: center; margin: 12px 0; }
+        .button-row button { margin: 0; }
+        .feedback-section { width: 100%; margin-top: 24px; }
+        .feedback-split { display: flex; gap: 20px; align-items: stretch; margin-top: 12px; }
+        .feedback-left { flex: 1; min-width: 0; }
+        .feedback-right { flex: 1; min-width: 0; min-height: 180px; padding: 16px; border-radius: 12px; border: 1px solid #e0d8f0; background: linear-gradient(135deg, #faf5ff 0%, #f0f4ff 100%); }
+        .feedback-right-empty { color: #888; font-style: italic; }
+        .feedback-sentence { margin-bottom: 12px; line-height: 1.6; }
+        .feedback-error-span { font-weight: bold; color: #e65100; background-color: rgba(230,81,0,0.15); padding: 0 2px; border-radius: 4px; cursor: pointer; }
+        .feedback-error-span:hover { background-color: rgba(230,81,0,0.25); }
+        .feedback-right .stage-question { margin-bottom: 12px; font-size: 1.05em; }
+        .feedback-right .stage-example { margin: 12px 0; padding: 10px; background: #fff; border-radius: 8px; border: 1px solid #e0e0e0; }
+        .feedback-right .stage-correction { margin: 12px 0; padding: 10px; background: #e8f5e9; border-radius: 8px; font-weight: bold; }
+        .feedback-btn { margin-top: 8px; padding: 8px 16px; border-radius: 8px; border: 1px solid #5c6bc0; background: #5c6bc0; color: white; cursor: pointer; font-size: 0.95rem; }
+        .feedback-btn:hover { background: #4a56a8; }
+        .feedback-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .page-title { font-family: 'Jua', sans-serif; font-size: 2rem; color: #2c3e6b; text-align: center; margin-bottom: 0; }
+        .page-tagline { text-align: center; font-size: 0.95rem; color: #5a6b8a; margin: 0.2em 0 1em 0; }
+        .section-title { font-family: 'Jua', sans-serif; font-size: 1.3rem; font-weight: normal; color: #2c3e6b; margin: 0 0 8px 0; }
+        label { display: block; margin-top: 10px; font-weight: bold; }
+        button { background: linear-gradient(180deg, #5c6bc0 0%, #4a56a8 100%); color: white; padding: 12px 20px; border: none; border-radius: 12px; cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 1rem; box-shadow: 0 2px 8px rgba(92,107,192,0.3); }
+        button:hover { background: linear-gradient(180deg, #6c7bd0 0%, #5a66b8 100%); box-shadow: 0 3px 12px rgba(92,107,192,0.4); }
+        button:disabled { opacity: 0.8; cursor: not-allowed; }
+        .feedback-disclaimer { margin: 10px 0 0 0; font-size: 13px; color: #777; }
+        .ai-generated { color: #2563eb; }
+        .top-banner { display: inline-flex; align-items: center; gap: 8px; width: fit-content; margin-bottom: 12px; padding: 8px 14px; background: linear-gradient(135deg, #5c6bc0 0%, #4a56a8 100%); color: white; text-decoration: none; font-family: 'Jua', sans-serif; font-size: 1.2rem; border-radius: 0 0 12px 0; box-shadow: 0 2px 10px rgba(92,107,192,0.35); }
+        .top-banner:hover { background: linear-gradient(135deg, #6c7bd0 0%, #5a66b8 100%); color: white; }
+        .topic-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+        .topic-row .section-title { margin: 0; }
+        .topic-btn { padding: 8px 14px; font-size: 0.9rem; }
+        .topic-display { min-height: 24px; margin-bottom: 8px; font-size: 0.95rem; color: #5a6b8a; }
+        .topic-display:not(:empty)::before { content: '오늘의 주제: '; font-weight: 600; color: #2c3e6b; }
+        .scribble-hints { margin: 12px 0 0 0; font-size: 0.9rem; color: #5a6b8a; line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <a class="top-banner" href="https://ai-ddl.onrender.com/" target="_blank" rel="noopener noreferrer">🕵️ AI-DDL</a>
+    <div class="container">
+        <h1 class="page-title">🔍 AI-DDL 글쓰기</h1>
+        <p class="page-tagline">영어 단서를 찾고, 문장을 탐정처럼 고쳐보세요!</p>
+
+        <form id="feedbackForm">
+            <div class="memo-row">
+                <div class="memo-col">
+                    <div class="topic-row">
+                        <label for="writing" class="section-title">✏️ 끄적끄적</label>
+                        <button type="button" id="randomTopicBtn" class="topic-btn">🎲 랜덤 주제</button>
+                    </div>
+                    <p class="scribble-hints">
+                        📖 교과서 대화문을 참고해서 글을 써보아요.<br>
+                        🎲 랜덤 주제 버튼을 눌러서 글을 쓸 수도 있어요.
+                    </p>
+                    <div id="topic-display" class="topic-display"></div>
+                    <textarea id="writing" class="memo-box" placeholder="여기에 글을 써 보세요!" required></textarea>
+                </div>
+                <div class="memo-col">
+                    <label for="rewrite" class="section-title">✒️ 고쳐쓰기</label>
+                    <textarea id="rewrite" class="memo-box" placeholder="피드백을 보고 여기에 고쳐 쓰세요!" aria-label="고쳐쓰기"></textarea>
+                </div>
+            </div>
+
+            <div class="button-row">
+                <button type="submit" id="feedbackSubmitBtn">단서 확인하기</button>
+            </div>
+
+            <div class="feedback-section">
+                <h2 class="section-title">👩‍🏫 AI 피드백</h2>
+                <p style="margin: 0 0 8px 0; font-size: 14px; color: #555;">
+                    오류 부분(주황색)을 클릭하면 단계별로 힌트를 볼 수 있어요.
+                </p>
+                <div class="feedback-split">
+                    <div class="feedback-left" id="feedback-left-output"></div>
+                    <div class="feedback-right" id="feedback-right-output">
+                        <span class="feedback-right-empty">오류 부분을 클릭해 보세요.</span>
+                    </div>
+                </div>
+                <p class="feedback-disclaimer">⚠️ AI도 가끔 실수를 한답니다.</p>
+                <p class="feedback-disclaimer"><span class="ai-generated">파란색</span>으로 쓰여진 문장은 AI가 생성한 문장입니다.</p>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('randomTopicBtn').addEventListener('click', async function () {
+            var btn = this;
+            var display = document.getElementById('topic-display');
+            btn.disabled = true;
+            btn.textContent = '생성 중...';
+            display.textContent = '';
+            try {
+                var res = await fetch('/api/random-topic');
+                var data = await res.json();
+                if (res.ok && data.topic) {
+                    display.textContent = data.topic;
+                } else {
+                    display.textContent = '주제를 불러오지 못했어요. 다시 시도해 주세요.';
+                }
+            } catch (e) {
+                display.textContent = '주제를 불러오지 못했어요.';
+            }
+            btn.disabled = false;
+            btn.textContent = '🎲 랜덤 주제';
+        });
+
+        function escapeHtml(text) {
+            if (text == null) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function escapeAttr(text) {
+            if (text == null) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        function buildLeftHtml(originalText, errorList) {
+            if (!originalText) return '';
+            if (!errorList || errorList.length === 0) return escapeHtml(originalText).replace(/\n/g, '<br>');
+
+            var text = originalText;
+            if (typeof text.normalize === 'function') text = text.normalize('NFC');
+
+            var errorsByPos = [];
+            for (var i = 0; i < errorList.length; i++) {
+                var err = errorList[i];
+                var span = (err.error_span || '').trim();
+                if (!span) continue;
+                if (typeof span.normalize === 'function') span = span.normalize('NFC');
+                var idx = text.indexOf(span);
+                if (idx !== -1) {
+                    errorsByPos.push({ start: idx, end: idx + span.length, err: err, span: span });
+                }
+            }
+            errorsByPos.sort(function (a, b) { return a.start - b.start; });
+
+            var html = '';
+            var lastEnd = 0;
+            for (var j = 0; j < errorsByPos.length; j++) {
+                var e = errorsByPos[j];
+                html += escapeHtml(text.slice(lastEnd, e.start)).replace(/\n/g, '<br>');
+                html += '<span class="feedback-error-span" data-error-id="' + escapeAttr(String(e.err.id)) + '">';
+                html += escapeHtml(e.span);
+                html += '</span>';
+                lastEnd = e.end;
+            }
+            html += escapeHtml(text.slice(lastEnd)).replace(/\n/g, '<br>');
+            return html;
+        }
+
+        function splitIntoSentences(text) {
+            if (!text || !text.trim()) return [];
+            // 문장 부호(. ? !) 뒤의 공백/줄바꿈 기준으로 문장 분리 (lookbehind 미지원 환경 대비)
+            var parts = text.trim().split(/([.!?])\s+/);
+            var sentences = [];
+            for (var i = 0; i < parts.length; i += 2) {
+                var s = (parts[i] || '') + (parts[i + 1] || '');
+                if (s.trim()) sentences.push(s.trim());
+            }
+            return sentences;
+        }
+
+        document.getElementById('feedbackForm').addEventListener('submit', async function (event) {
+            event.preventDefault();
+            var writing = document.getElementById('writing').value;
+            var submitBtn = document.getElementById('feedbackSubmitBtn');
+            var leftOutput = document.getElementById('feedback-left-output');
+            var rightOutput = document.getElementById('feedback-right-output');
+
+            leftOutput.innerHTML = '';
+            rightOutput.innerHTML = '<span class="feedback-right-empty">오류 부분을 클릭해 보세요.</span>';
+            submitBtn.textContent = '단서 확인 중...';
+            submitBtn.disabled = true;
+
+            try {
+                var response = await fetch('/feedback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ writing: writing })
+                });
+                var result = await response.json();
+                if (response.ok) {
+                    var feedback = result.feedback;
+                    var errorList = feedback.error_list || [];
+                    var originalText = feedback.original_text || '';
+                    var sentences = feedback.sentences || splitIntoSentences(originalText);
+
+                    var leftHtml = '';
+                    for (var i = 0; i < sentences.length; i++) {
+                        var sent = sentences[i];
+                        var sentErrors = errorList.filter(function (e) {
+                            return sent.indexOf(e.error_span || '') !== -1;
+                        });
+                        if (sentErrors.length > 0) {
+                            var sentText = sent;
+                            var errPositions = sentErrors.map(function (err) {
+                                var span = (err.error_span || '').trim();
+                                var idx = span ? sentText.indexOf(span) : -1;
+                                return { err: err, span: span, idx: idx };
+                            }).filter(function (p) { return p.span && p.idx !== -1; });
+                            errPositions.sort(function (a, b) { return a.idx - b.idx; });
+                            var lastEnd = 0;
+                            var frag = '';
+                            for (var k = 0; k < errPositions.length; k++) {
+                                var p = errPositions[k];
+                                frag += escapeHtml(sentText.slice(lastEnd, p.idx)).replace(/\n/g, '<br>');
+                                frag += '<span class="feedback-error-span" data-error-id="' + escapeAttr(String(p.err.id)) + '">' + escapeHtml(p.span) + '</span>';
+                                lastEnd = p.idx + p.span.length;
+                            }
+                            frag += escapeHtml(sentText.slice(lastEnd)).replace(/\n/g, '<br>');
+                            leftHtml += '<div class="feedback-sentence">' + frag + '</div>';
+                        } else {
+                            leftHtml += '<div class="feedback-sentence">' + escapeHtml(sent).replace(/\n/g, '<br>') + '</div>';
+                        }
+                    }
+                    if (!leftHtml && originalText) {
+                        leftHtml = '<div class="feedback-sentence">' + escapeHtml(originalText).replace(/\n/g, '<br>') + '</div>';
+                    }
+                    leftOutput.innerHTML = leftHtml || escapeHtml(originalText).replace(/\n/g, '<br>');
+
+                    var errorMap = {};
+                    for (var m = 0; m < errorList.length; m++) {
+                        errorMap[String(errorList[m].id)] = errorList[m];
+                    }
+
+                    leftOutput.querySelectorAll('.feedback-error-span').forEach(function (el) {
+                        el.addEventListener('click', function () {
+                            var errId = el.getAttribute('data-error-id');
+                            var err = errorMap[errId];
+                            if (!err) return;
+
+                            var state = { step: 2, exampleShown: false, correctionShown: false };
+                            var question = err.question || '이 부분을 다시 확인해 보세요.';
+                            var questionSource = err.question_source || 'ai';
+                            var exampleSentences = err.example_sentences || [];
+
+                            function renderRight() {
+                                var questionHtml = questionSource === 'ai'
+                                    ? '<span class="ai-generated">' + escapeHtml(question) + '</span>'
+                                    : escapeHtml(question);
+                                var html = '<div class="stage-question">' + questionHtml + '</div>';
+                                html += '<button type="button" class="feedback-btn" id="btn-example">예문 보기</button>';
+                                html += '<div id="example-area" style="display:none;"></div>';
+                                html += '<button type="button" class="feedback-btn" id="btn-correction" style="display:none;">정답 보기</button>';
+                                html += '<div id="correction-area" style="display:none;"></div>';
+                                rightOutput.innerHTML = html;
+
+                                document.getElementById('btn-example').addEventListener('click', function () {
+                                    var exampleParts = [];
+                                    if (exampleSentences.length > 0) {
+                                        for (var k = 0; k < exampleSentences.length; k++) {
+                                            var item = exampleSentences[k];
+                                            var t = (item && item.text) ? item.text : '';
+                                            var src = (item && item.source) ? item.source : 'ai';
+                                            if (t) {
+                                                var safe = escapeHtml(t);
+                                                exampleParts.push(src === 'ai' ? '<span class="ai-generated">' + safe + '</span>' : safe);
+                                            }
+                                        }
+                                    }
+                                    var exampleContent = exampleParts.length ? exampleParts.join('<br>') : escapeHtml('예문 없음');
+                                    document.getElementById('example-area').style.display = 'block';
+                                    document.getElementById('example-area').innerHTML = '<div class="stage-example">' + exampleContent + '</div>';
+                                    document.getElementById('btn-correction').style.display = 'inline-block';
+                                });
+
+                                document.getElementById('btn-correction').addEventListener('click', function () {
+                                    var cor = (err.correction !== undefined && err.correction !== null) ? String(err.correction) : '';
+                                    document.getElementById('correction-area').style.display = 'block';
+                                    document.getElementById('correction-area').innerHTML = '<div class="stage-correction">' + escapeHtml(err.error_span || '') + ' → ' + escapeHtml(cor) + '</div>';
+                                });
+                            }
+                            renderRight();
+                        });
+                    });
+
+                    submitBtn.textContent = '단서 도착!';
+                    submitBtn.disabled = false;
+                } else {
+                    rightOutput.innerHTML = escapeHtml('오류: ' + (result.error || JSON.stringify(result)));
+                    submitBtn.textContent = '단서 확인하기';
+                    submitBtn.disabled = false;
+                }
+            } catch (error) {
+                rightOutput.innerHTML = escapeHtml('네트워크 오류: ' + error.message);
+                submitBtn.textContent = '단서 확인하기';
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

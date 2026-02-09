@@ -188,48 +188,167 @@ def get_unit_theme_from_csv(grade, publisher, unit):
     return ""
 
 
+def _normalize_publisher_for_scribble(p):
+    """CSV 출판사 값을 요청 출판사와 비교할 때 쓰는 표준 형태로. YBM(?) → YBM(김) 매칭용."""
+    if pd.isna(p):
+        return ""
+    s = str(p).strip()
+    if not s:
+        return ""
+    if s.startswith("YBM(") and ")" in s:
+        return "YBM(김)"
+    return s
+
+
+def _get_scribble_row_from_csv(grade, publisher, unit):
+    """grade3 CSV에서 해당 단원의 script_en, script_kr, key_expression, key_expression_kr가 있는 행 반환."""
+    grade = str(grade).strip() if grade else ""
+    publisher = str(publisher).strip() if publisher else ""
+    unit_norm = normalize_unit(unit)
+    if grade != "3" or not publisher or not unit_norm:
+        return None
+    filename = "key_expressions_grade3.csv"
+    path = os.path.join(CORPUS_DATA_DIR, filename)
+    if not os.path.exists(path):
+        return None
+    try:
+        try:
+            df = pd.read_csv(path, encoding="utf-8-sig")
+        except UnicodeDecodeError:
+            df = pd.read_csv(path, encoding="cp949")
+        df.columns = [str(c).strip().replace("\ufeff", "") for c in df.columns]
+        for _, row in df.iterrows():
+            p, u = row.get("publisher"), row.get("unit")
+            if pd.isna(p) or pd.isna(u):
+                continue
+            p_norm = _normalize_publisher_for_scribble(p)
+            p_match = (p_norm == publisher) or (str(p).strip() == publisher)
+            if not p_match or normalize_unit(u) != unit_norm:
+                continue
+            script_en = row.get("script_en")
+            if pd.notna(script_en) and str(script_en).strip():
+                ke = row.get("key_expression")
+                ke_kr = row.get("key_expression_kr")
+                script_kr = row.get("script_kr")
+                return {
+                    "script_en": str(script_en).strip(),
+                    "script_kr": (
+                        str(script_kr).strip()
+                        if pd.notna(script_kr) and str(script_kr).strip()
+                        else ""
+                    ),
+                    "key_expression": str(ke).strip() if pd.notna(ke) else "",
+                    "key_expression_kr": str(ke_kr).strip() if pd.notna(ke_kr) else "",
+                }
+    except Exception as e:
+        print(f"[scribble CSV] {e}")
+    return None
+
+
+def _is_korean_broken(s):
+    """한글이 ? 등으로 깨져 있거나 비어 있으면 True."""
+    if not s or not str(s).strip():
+        return True
+    t = str(s).strip()
+    # 한글 문자가 하나도 없고 ?가 많으면 깨진 것으로 간주
+    if "?" in t and not re.search(r"[가-힣]", t):
+        return True
+    return False
+
+
+# CSV 한글이 깨졌을 때 쓰는 폴백 (출판사, 단원별 script_kr, key_expression_kr)
+_SCRIBBLE_KR_FALLBACK = {
+    ("YBM(김)", "Unit 1"): (
+        "안녕, 나는 데이비드야. 만나서 반가워.",
+        "나는 ~야, 만나서 반가워",
+    ),
+}
+
+
+def _get_scribble_kr_fallback(publisher, unit):
+    """출판사·단원에 맞는 한글 폴백 (script_kr, key_expression_kr) 반환. 없으면 (None, None)."""
+    unit_norm = normalize_unit(unit)
+    key = (str(publisher).strip(), unit_norm)
+    return _SCRIBBLE_KR_FALLBACK.get(key, (None, None))
+
+
+def _make_blank(s, with_kr=None):
+    """빈칸 길이: 짧으면 (    ), 길면 (       ) 정도."""
+    n = max(4, min(12, len(s)))
+    return "(" + " " * n + ")" + (f"[{with_kr}]" if with_kr else "")
+
+
+def get_scribble_prompt(grade, publisher, unit, mode):
+    """끄적끄적 모드 1~4에 맞는 힌트 문자열 반환. grade3만 지원."""
+    data = _get_scribble_row_from_csv(grade, publisher, unit)
+    if not data:
+        return ""
+    script_en = data["script_en"]
+    script_kr = data["script_kr"]
+    ke_str = data["key_expression"]
+    ke_kr_str = data["key_expression_kr"]
+
+    # CSV 한글이 ?로 깨진 경우 폴백 사용
+    if _is_korean_broken(script_kr) or _is_korean_broken(ke_kr_str):
+        fallback_script_kr, fallback_ke_kr = _get_scribble_kr_fallback(publisher, unit)
+        if fallback_script_kr is not None:
+            script_kr = fallback_script_kr
+        if fallback_ke_kr is not None:
+            ke_kr_str = fallback_ke_kr
+
+    if mode == 4:
+        return ""
+    if mode == 3:
+        return script_kr if script_kr else ""
+
+    # key_expression, key_expression_kr를 리스트로 (쉼표 구분)
+    keys = [k.strip() for k in ke_str.split(",") if k.strip()]
+    kr_list = (
+        [k.strip() for k in ke_kr_str.split(",") if k.strip()] if ke_kr_str else []
+    )
+
+    if mode == 2:
+        # 빈칸만
+        text = script_en
+        for i, key in enumerate(keys):
+            blank = _make_blank(key, with_kr=None)
+            idx = text.find(key)
+            if idx != -1:
+                text = text[:idx] + blank + text[idx + len(key) :]
+        return text
+    if mode == 1:
+        # 빈칸 + 한국어 뜻
+        text = script_en
+        for i, key in enumerate(keys):
+            kr = kr_list[i] if i < len(kr_list) else ""
+            blank = _make_blank(key, with_kr=kr)
+            idx = text.find(key)
+            if idx != -1:
+                text = text[:idx] + blank + text[idx + len(key) :]
+        return text
+    return ""
+
+
+@app.route("/api/scribble-prompt")
+def api_scribble_prompt():
+    """끄적끄적 모드 1~4 힌트. grade=3&publisher=...&unit=1&mode=1"""
+    grade = request.args.get("grade", "").strip()
+    publisher = request.args.get("publisher", "").strip()
+    unit = request.args.get("unit", "").strip()
+    mode = request.args.get("mode", "1")
+    try:
+        mode = int(mode)
+    except (ValueError, TypeError):
+        mode = 1
+    if mode not in (1, 2, 3, 4):
+        mode = 1
+    hint = get_scribble_prompt(grade, publisher, unit, mode)
+    return jsonify({"hint": hint, "mode": mode})
+
+
 @app.route("/")
 def home():
     return render_template("index.html")
-
-
-@app.route("/upload_key_expressions", methods=["POST"])
-def upload_key_expressions():
-    if "file" not in request.files:
-        return jsonify({"error": "No file part"}), 400
-    file = request.files["file"]
-    if file.filename == "":
-        return jsonify({"error": "No selected file"}), 400
-    if file and file.filename.endswith(".csv"):
-        try:
-            df = pd.read_csv(file)
-            for index, row in df.iterrows():
-                grade = row["grade"]
-                publisher = row["publisher"]
-                unit = normalize_unit(row["unit"])
-                key_expression = row["key_expression"]
-                example_sentence = (
-                    row["example_sentence"]
-                    if pd.notna(row.get("example_sentence"))
-                    else None
-                )
-                unit_theme = (
-                    row["unit_theme"]
-                    if "unit_theme" in row and pd.notna(row.get("unit_theme"))
-                    else None
-                )
-                insert_key_expression(
-                    grade,
-                    publisher,
-                    unit,
-                    key_expression,
-                    example_sentence,
-                    unit_theme=unit_theme,
-                )
-            return jsonify({"message": "Key expressions uploaded successfully"}), 200
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-    return jsonify({"error": "Invalid file type, please upload a CSV"}), 400
 
 
 def _parse_json_from_response(content):
@@ -424,7 +543,7 @@ def api_call_2_classify_errors_by_theme(errors, unit_theme, key_expressions_list
         ]
 
 
-def build_kwic_from_db(classifications, key_expressions_list):
+def build_kwic_from_db(key_expressions_list):
     if not key_expressions_list:
         return "단원의 핵심 표현이 없습니다."
     # 예문: 행마다 1개 표시. 한 셀에 여러 예문은 | 또는 줄바꿈으로 구분 가능
@@ -757,7 +876,7 @@ def get_feedback():
 
     errors = api_call_1_extract_errors(student_writing)
     if not errors:
-        kwic_examples = build_kwic_from_db([], key_expressions_list)
+        kwic_examples = build_kwic_from_db(key_expressions_list)
         return (
             jsonify(
                 {
@@ -774,7 +893,7 @@ def get_feedback():
     classifications = api_call_2_classify_errors_by_theme(
         errors, unit_theme, key_expressions_list
     )
-    kwic_examples = build_kwic_from_db(classifications, key_expressions_list)
+    kwic_examples = build_kwic_from_db(key_expressions_list)
 
     key_expr_error_ids = {
         c["error_id"] for c in classifications if c.get("is_key_expression_error")

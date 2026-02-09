@@ -20,9 +20,7 @@
         .main-row .feedback-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
         #kwic-section { width: 100%; margin-top: 16px; }
         #kwic-output { font-family: Georgia, 'Times New Roman', serif; font-size: 1.05em; color: #333; background-color: #e8ecf0; padding: 14px; border-radius: 12px; border: 1px solid #d0d8e4; }
-        textarea { flex-grow: 1; min-height: 200px; border-radius: 12px; border-color: #d4c4a0; }
-        #writing { font-size: 1.5em; background-color: #fff9c4; }
-        #feedback-output { flex-grow: 1; margin-top: 0; }
+        textarea { width: 100%; padding: 8px; border-radius: 12px; border-color: #d4c4a0; box-sizing: border-box; }
         .page-title { font-family: 'Jua', sans-serif; font-size: 2rem; color: #2c3e6b; text-align: center; margin-bottom: 0; }
         .page-tagline { text-align: center; font-size: 0.95rem; color: #5a6b8a; margin: 0.2em 0 1em 0; }
         .section-title { font-family: 'Jua', sans-serif; font-size: 1.3rem; font-weight: normal; color: #2c3e6b; margin: 0 0 8px 0; }
@@ -31,7 +29,6 @@
         button { background: linear-gradient(180deg, #5c6bc0 0%, #4a56a8 100%); color: white; padding: 12px 20px; border: none; border-radius: 12px; cursor: pointer; margin-top: 10px; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 1rem; box-shadow: 0 2px 8px rgba(92,107,192,0.3); }
         button:hover { background: linear-gradient(180deg, #6c7bd0 0%, #5a66b8 100%); box-shadow: 0 3px 12px rgba(92,107,192,0.4); }
         button:disabled { opacity: 0.8; cursor: not-allowed; }
-        #feedback-output { margin-top: 20px; padding: 15px; background-color: #f5f0ff; border: 1px solid #e0d8f0; border-radius: 12px; white-space: pre-wrap; }
         .error { color: red; }
         mark { background-color: #fff59d; padding: 0 3px; border-radius: 4px; }
         .corrected-hint { margin: 0 0 8px 0; font-size: 14px; color: #555; }
@@ -46,6 +43,15 @@
         .kwic-toggle { font-size: 13px; padding: 6px 12px; border-radius: 8px; border: 1px solid #c5d4e8; background: #fff; cursor: pointer; color: #2c3e6b; }
         .kwic-toggle:hover { background: #f0f4ff; }
         #kwic-section.kwic-collapsed .kwic-content { display: none; }
+        .scribble-mode-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+        .scribble-mode-label { font-size: 0.95rem; font-weight: 600; color: #2c3e6b; }
+        .scribble-mode-btn { width: 36px; height: 36px; padding: 0; margin: 0; font-weight: 700; font-size: 1.1rem; border-radius: 10px; }
+        .scribble-mode-btn.active { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #5c6bc0; }
+        .scribble-split { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; }
+        .scribble-hint-box { min-height: 67px; padding: 12px 14px; border-radius: 12px; border: 1px solid #d4c4a0; background: #f5f0e8; font-size: 1.1em; line-height: 1.5; white-space: pre-wrap; overflow-y: auto; color: #333; }
+        .scribble-hint-box:empty::before { content: '힌트를 불러오면 여기에 표시돼요.'; color: #888; }
+        .scribble-hint-box .scribble-hint-kr { font-size: 0.8em; color: #777; }
+        .scribble-writing-box { flex: 1; min-height: 180px; font-size: 1.5em; background-color: #fff9c4; border-radius: 12px; border-color: #d4c4a0; }
         .top-banner { display: inline-flex; align-items: center; gap: 8px; width: fit-content; margin-bottom: 12px; padding: 8px 14px; background: linear-gradient(135deg, #5c6bc0 0%, #4a56a8 100%); color: white; text-decoration: none; font-family: 'Jua', sans-serif; font-size: 1.2rem; border-radius: 0 0 12px 0; box-shadow: 0 2px 10px rgba(92,107,192,0.35); }
         .top-banner:hover { background: linear-gradient(135deg, #6c7bd0 0%, #5a66b8 100%); color: white; }
     </style>
@@ -81,7 +87,17 @@
             <div class="main-row">
                 <div class="writing-col">
                     <label for="writing" class="section-title">✏️ 끄적끄적</label>
-                    <textarea id="writing" placeholder="여기에 글을 입력하세요..." required></textarea>
+                    <div class="scribble-mode-row">
+                        <span class="scribble-mode-label">힌트 모드:</span>
+                        <button type="button" class="scribble-mode-btn" data-mode="1" title="핵심 표현 빈칸 + 한국어 뜻">1</button>
+                        <button type="button" class="scribble-mode-btn" data-mode="2" title="핵심 표현 빈칸만">2</button>
+                        <button type="button" class="scribble-mode-btn" data-mode="3" title="한국어 스크립트만">3</button>
+                        <button type="button" class="scribble-mode-btn" data-mode="4" title="힌트 없음">4</button>
+                    </div>
+                    <div class="scribble-split">
+                        <div id="scribble-hint" class="scribble-hint-box" aria-label="힌트">힌트를 불러오면 여기에 표시돼요.</div>
+                        <textarea id="writing" class="scribble-writing-box" placeholder="여기에 글을 써 보세요!" required></textarea>
+                    </div>
                 </div>
                 <div class="button-col">
                     <button type="submit" id="feedbackSubmitBtn">단서 확인하기</button>
@@ -231,6 +247,61 @@
 
         gradeSelect.addEventListener('change', refreshPublisherAndUnits);
         refreshPublisherAndUnits();
+
+        // 끄적끄적 모드 1,2,3,4 버튼 → 위쪽 힌트 칸에 표시, 아래쪽은 글쓰기 칸(비움)
+        (function () {
+            var hintEl = document.getElementById('scribble-hint');
+            var writingEl = document.getElementById('writing');
+            var scribbleBtns = document.querySelectorAll('.scribble-mode-btn');
+            scribbleBtns.forEach(function (btn) {
+                btn.addEventListener('click', async function () {
+                    var grade = gradeSelect.value;
+                    var publisher = publisherSelect.value;
+                    var unit = unitSelect.value;
+                    var mode = btn.getAttribute('data-mode') || '1';
+                    if (!grade || !publisher || !unit) {
+                        alert('학년, 출판사, 단원을 먼저 선택해 주세요.');
+                        return;
+                    }
+                    scribbleBtns.forEach(function (b) { b.classList.remove('active'); });
+                    btn.classList.add('active');
+                    writingEl.placeholder = '여기에 글을 써 보세요!';
+                    if (mode === '4') {
+                        hintEl.textContent = '배운 표현을 사용해서 자유롭게 글을 써보세요!';
+                        writingEl.value = '';
+                        return;
+                    }
+                    try {
+                        var params = new URLSearchParams({ grade: grade, publisher: publisher, unit: unit, mode: mode });
+                        var res = await fetch('/api/scribble-prompt?' + params.toString());
+                        var data = await res.json();
+                        var hint = (data.hint != null) ? String(data.hint) : '';
+                        var displayText = hint || '이 단원 힌트가 없어요.';
+                        if (mode === '1' && hint) {
+                            // 모드 1: [한국어] 부분만 작은 회색으로
+                            var parts = [];
+                            var re = /\[([^\]]+)\]/g;
+                            var last = 0;
+                            var match;
+                            while ((match = re.exec(hint)) !== null) {
+                                parts.push(escapeHtml(hint.slice(last, match.index)));
+                                parts.push('<span class="scribble-hint-kr">' + escapeHtml(match[1]) + '</span>');
+                                last = re.lastIndex;
+                            }
+                            parts.push(escapeHtml(hint.slice(last)));
+                            hintEl.innerHTML = parts.join('');
+                        } else {
+                            hintEl.textContent = displayText;
+                        }
+                        writingEl.value = '';
+                    } catch (e) {
+                        console.error(e);
+                        hintEl.textContent = '힌트를 불러오지 못했어요.';
+                        writingEl.value = '';
+                    }
+                });
+            });
+        })();
 
         (function () {
             var kwicSection = document.getElementById('kwic-section');
