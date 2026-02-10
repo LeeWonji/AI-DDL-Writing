@@ -5,11 +5,22 @@ import time
 import unicodedata
 
 from flask import Flask, request, jsonify, render_template
-import openai
+from openai import OpenAI
 import pandas as pd
 
 app = Flask(__name__)
-openai.api_key = os.getenv("OPENAI_API_KEY")
+_openai_client = None
+
+
+def _get_openai_client():
+    """OPENAI_API_KEY를 사용하는 클라이언트. 한 번만 생성."""
+    global _openai_client
+    if _openai_client is None:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
+        _openai_client = OpenAI(api_key=api_key)
+    return _openai_client
 
 
 # API 재시도 (일시적 오류 완화)
@@ -19,7 +30,8 @@ def _openai_chat_with_retry(
     last_err = None
     for attempt in range(max_retries):
         try:
-            return openai.chat.completions.create(
+            client = _get_openai_client()
+            return client.chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=temperature,
@@ -38,6 +50,14 @@ LOUVAIN_TAG_EXAMPLES_PATH = os.path.join(CORPUS_DATA_DIR, "louvain_tag_examples.
 _louvain_cache = None
 
 
+def _cell_str(val):
+    """CSV 셀 값을 안전하게 문자열로. float/NaN은 빈 문자열."""
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return ""
+    s = str(val).strip()
+    return "" if s.lower() in ("nan", "none") else s
+
+
 def _load_louvain_error_tags():
     """louvain_tag_examples.csv 단일 파일 로드 (code, label_en, desc_en, question, example_sentence)."""
     global _louvain_cache
@@ -54,21 +74,14 @@ def _load_louvain_error_tags():
         df.columns = [str(c).strip().replace("\ufeff", "") for c in df.columns]
         rows = []
         for _, r in df.iterrows():
-            code = r.get("code")
-            if pd.isna(code) or not str(code).strip():
+            code = _cell_str(r.get("code"))
+            if not code:
                 continue
-            code = str(code).strip()
-            label_en = (
-                (r.get("label_en") or "").strip() if pd.notna(r.get("label_en")) else ""
-            )
-            desc_en = (
-                (r.get("desc_en") or "").strip() if pd.notna(r.get("desc_en")) else ""
-            )
-            question = (
-                (r.get("question") or "").strip() if pd.notna(r.get("question")) else ""
-            )
-            ex = (r.get("Example sentences") or r.get("example_sentence") or "").strip()
-            if pd.notna(ex) and ex:
+            label_en = _cell_str(r.get("label_en"))
+            desc_en = _cell_str(r.get("desc_en"))
+            question = _cell_str(r.get("question"))
+            ex = _cell_str(r.get("Example sentences") or r.get("example_sentence"))
+            if ex:
                 ex = ex.replace("|", "\n")
             rows.append(
                 {
@@ -126,6 +139,38 @@ def home():
     return render_template("index(2).html")
 
 
+@app.route("/api/random-topic", methods=["GET"])
+def api_random_topic():
+    """랜덤 글쓰기 주제 한 개를 OpenAI로 생성해 반환. 응답: { \"topic\": \"...\" }"""
+    prompt = """Give one short English writing topic for elementary or middle school ESL students.
+Reply with only the topic in one sentence or phrase, in Korean. No number, no explanation.
+Example: 나의 주말 일과, 내가 좋아하는 음식 소개하기"""
+    try:
+        response = _openai_chat_with_retry(
+            model="gpt-3.5-turbo",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You suggest one simple writing topic in Korean only. Output nothing but the topic text.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.8,
+            max_tokens=80,
+        )
+        raw = (response.choices[0].message.content or "").strip()
+        topic = raw.split("\n")[0].strip() if raw else ""
+        if not topic:
+            return jsonify({"error": "주제를 생성하지 못했습니다."}), 503
+        return jsonify({"topic": topic}), 200
+    except Exception as e:
+        print(f"[api/random-topic] 실패: {e}")
+        return (
+            jsonify({"error": "주제를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."}),
+            503,
+        )
+
+
 def _parse_json_from_response(content):
     if not content or not isinstance(content, str):
         return None
@@ -134,11 +179,27 @@ def _parse_json_from_response(content):
     m = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", content)
     if m:
         content = m.group(1).strip()
+
+    def _try_load(s):
+        if not s:
+            return None
+        try:
+            return json.loads(s)
+        except json.JSONDecodeError:
+            pass
+        # trailing comma 제거 시도 (LLM이 자주 출력)
+        t = re.sub(r",\s*([}\]])", r"\1", s)
+        if t != s:
+            try:
+                return json.loads(t)
+            except json.JSONDecodeError:
+                pass
+        return None
+
     # 1) 전체 파싱 시도
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError:
-        pass
+    out = _try_load(content)
+    if out is not None:
+        return out
     # 2) 첫 번째 '[' 와 마지막 ']' 사이 배열만 추출 (앞뒤 설명문 제거)
     start = content.find("[")
     if start != -1:
@@ -149,17 +210,16 @@ def _parse_json_from_response(content):
             elif content[i] == "]":
                 depth -= 1
                 if depth == 0:
-                    try:
-                        return json.loads(content[start : i + 1])
-                    except json.JSONDecodeError:
-                        break
+                    out = _try_load(content[start : i + 1])
+                    if out is not None:
+                        return out
+                    break
     # 3) 정규식으로 배열 부분만
     bracket = re.search(r"\[[\s\S]*\]", content)
     if bracket:
-        try:
-            return json.loads(bracket.group(0))
-        except json.JSONDecodeError:
-            pass
+        out = _try_load(bracket.group(0))
+        if out is not None:
+            return out
     return None
 
 
@@ -223,11 +283,11 @@ def api_call_1_extract_errors(writing):
 {writing}
 \"\"\"
 
-위 글에서 발견한 모든 오류를 아래 JSON 배열 형식으로만 출력하세요. 오류가 없으면 [] 출력.
+위 글에서 발견한 모든 오류를 나열하세요. 오류가 없으면 errors에 빈 배열을 넣으세요.
 - 문법·철자·굴절·전치사 등 모든 영어 오류를 포함하세요.
-- **한국어가 한 글자라도 섞여 있으면 반드시** 그 부분을 빠짐없이 오류로 넣으세요. 인사말(안녕, 안녕하세요 등), 이름·단어(이원지야, 전주북초등학교에 등), 조사·어미(가, 에, 를 등) 모두 각각 별도 오류. description은 "한국어를 영어로 번역". 예: "안녕, I'm 이원지야. ... everyday 가" → error_span "안녕", "이원지야", "전주북초등학교에", "가" 각각 별도 항목.
-- **error_span은 위 학생 작문 원문에 나온 문자열을 그대로 복사**하세요. 공백·문자 하나라도 다르면 안 됩니다. 실제로 잘못된 부분만 최소 단위로 나누되, 반드시 원문과 동일한 문자열을 사용하세요. (예: "too meet" → error_span "too"만. "이원지야"가 있으면 error_span은 "이원지야" 그대로.)
-[{{"id": 0, "sentence": "오류가 포함된 문장", "error_span": "원문과 동일한 문자열", "description": "오류 유형"}}, ...]"""
+- **error_span은 반드시 위 학생 작문 원문에 나온 문자열을 그대로 복사**하세요. (예: "thinked"가 있으면 error_span은 "thinked")
+응답은 반드시 아래 형태의 JSON 하나만 출력하세요. 다른 설명 없이 JSON만.
+{{"errors": [{{"id": 0, "sentence": "오류가 포함된 문장", "error_span": "원문과 동일한 문자열", "description": "오류 유형"}}, ...]}}"""
 
     try:
         response = _openai_chat_with_retry(
@@ -235,7 +295,7 @@ def api_call_1_extract_errors(writing):
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert ESL/EFL error detector. List every grammatical, spelling, and usage error. If the writing contains ANY Korean (including greetings like 안녕, particles/endings like 가/에/를, names, place names), list EVERY such Korean piece as a separate error with description '한국어를 영어로 번역'. Do not skip any. Use for error_span the EXACT substring from the student writing. Output only a valid JSON array.",
+                    "content": "You are an expert ESL/EFL error detector. List every real error including: spelling (rabit→rabbit), tense (e.g. 'when I am a child' in a past context → should be 'when I was a child'), and grammar. Do NOT flag correct pronoun use: object pronouns (him, her, them, me) after a verb or preposition are correct. Only flag pronouns when case is wrong. Use for error_span the EXACT substring from the student writing. Reply with a single JSON object: {\"errors\": [...]}. No other text.",
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -243,27 +303,72 @@ def api_call_1_extract_errors(writing):
             max_tokens=1500,
         )
         raw = response.choices[0].message.content or ""
+        # {"errors": [...]} 형태 또는 [...] 배열 형태 모두 허용
         parsed = _parse_json_from_response(raw)
+        if isinstance(parsed, dict) and "errors" in parsed:
+            parsed = parsed["errors"]
         if parsed is None or not isinstance(parsed, list):
-            print(f"[API1] 파싱 실패. raw 앞 300자: {raw[:300] if raw else 'None'}")
+            print(f"[API1] 파싱 실패. raw 앞 500자:\n{raw[:500] if raw else 'None'}")
             return []
+        writing_nfc = unicodedata.normalize("NFC", writing)
         out = []
+        span_keys = ("error_span", "errorSpan", "error", "wrong_word", "incorrect", "word", "phrase", "token", "text")
+
+        def _span_in_writing(candidate):
+            """NFC 정규화 후 원문 포함 여부 확인. 포함되면 원문에서의 실제 문자열 반환."""
+            if not candidate or not isinstance(candidate, str):
+                return None
+            s = candidate.strip()
+            if not s:
+                return None
+            s_nfc = unicodedata.normalize("NFC", s)
+            idx = writing_nfc.find(s_nfc)
+            if idx != -1:
+                return writing_nfc[idx : idx + len(s_nfc)]
+            if s in writing_nfc:
+                return s
+            return None
+
         for e in parsed:
-            if not isinstance(e, dict) or "sentence" not in e:
+            if not isinstance(e, dict):
                 continue
-            # id: 숫자 또는 문자열 허용
-            eid = e.get("id", len(out))
-            span = (e.get("error_span") or e.get("errorSpan") or "").strip()
+            span = None
+            for key in span_keys:
+                val = e.get(key)
+                if val is None or (isinstance(val, float) and pd.isna(val)):
+                    continue
+                span = _span_in_writing(str(val))
+                if span:
+                    break
+            if not span:
+                for _, val in e.items():
+                    if isinstance(val, str) and len(val) >= 2:
+                        span = _span_in_writing(val)
+                        if span:
+                            break
             if not span:
                 continue
+            sentence = (
+                e.get("sentence")
+                or e.get("sentence_text")
+                or e.get("context")
+                or ""
+            )
+            if isinstance(sentence, str):
+                sentence = sentence.strip()
+            else:
+                sentence = ""
+            eid = e.get("id", len(out))
             out.append(
                 {
                     "id": eid,
-                    "sentence": e.get("sentence", ""),
+                    "sentence": sentence,
                     "error_span": span,
-                    "description": (e.get("description") or "").strip(),
+                    "description": _cell_str(e.get("description")),
                 }
             )
+        if not out and writing.strip():
+            print(f"[API1] 파싱된 배열은 있으나 유효한 오류 항목 없음. raw 앞 600자:\n{raw[:600]}")
         return out
     except Exception as e:
         print(f"[API1] 오류 추출 실패: {e}")
@@ -285,14 +390,16 @@ def api_call_get_corrections(non_key_errors):
         ],
         ensure_ascii=False,
     )
-    prompt = f"""아래 오류 목록에서 각 error_span을 문맥에 맞게 고친 **한 단어 또는 짧은 구**만 제시하세요.
-- 영어 오류: 예) "ofen"→"often", "wakes"→"wake", "in bus"→"by bus".
-- **한국어(error_span에 한글이 있는 경우)**: 반드시 해당 한국어를 **영어 단어/구 하나**로만 번역하여 correction에 넣으세요. correction에는 한글이 있으면 안 됩니다. 예) "내"→"my", "최애"→"favorite", "영화"→"movie".
+    prompt = f"""아래 오류 목록에서 각 error_span에 대해, **문장에서 해당 부분을 그대로 대체했을 때 자연스러운 전체 대체문(구)**을 제시하세요.
+- correction은 error_span과 **같은 자리**에 넣었을 때 문장이 자연스러워지도록, 필요한 만큼의 단어/구를 모두 포함하세요. (예: error_span이 "I am a child"이면 correction은 "I was a child"처럼 전체 구를 고친 형태로.)
+- **대명사**: 주어 자리에는 I/he/she, **목적어 자리(동사·전치사 뒤)**에는 me/him/her/them을 씁니다. 목적어 자리에 이미 him/her 등이 맞게 쓰였으면 he/she로 '고치지' 마세요. (예: "I miss him"에서 him은 맞음 → 잘못 오류로 들어온 경우 correction은 그대로 "him" 또는 해당 문맥에 맞는 목적어 형태.)
+- 영어 오류: 예) "ofen"→"often", "wakes"→"wake", "in bus"→"by bus", "I am a child"→"I was a child".
+- **한국어(error_span에 한글이 있는 경우)**: 해당 한국어를 **영어로 번역한 단어/구**를 넣으세요. correction에는 한글이 있으면 안 됩니다. 예) "내"→"my", "최애"→"favorite".
 오류 목록 (JSON):
 {errors_json}
 
-응답은 반드시 아래 형식의 JSON 배열만 출력하세요. 각 error_id에 대해 correction 하나씩. 한국어 오류의 correction은 반드시 영어만.
-[{{"error_id": 0, "correction": "often"}}, {{"error_id": 1, "correction": "my"}}, ...]"""
+응답은 반드시 아래 형식의 JSON 배열만 출력하세요. 각 error_id에 대해 correction 하나씩.
+[{{"error_id": 0, "correction": "often"}}, {{"error_id": 1, "correction": "I was a child"}}, ...]"""
 
     try:
         response = _openai_chat_with_retry(
@@ -300,7 +407,7 @@ def api_call_get_corrections(non_key_errors):
             messages=[
                 {
                     "role": "system",
-                    "content": "Output only a valid JSON array of {error_id, correction}. One correction per error. If error_span contains Korean characters, correction MUST be the English equivalent only—no Korean allowed in correction.",
+                    "content": "For each error, output the full replacement phrase that can replace error_span in the sentence and make it correct. Subject position: I/he/she; object position (after verb/preposition): me/him/her/them. Do NOT 'correct' correctly used object pronouns to subject form (e.g. 'him' in 'I miss him' is correct—do not suggest 'he'). Do not abbreviate: e.g. for 'I am a child' give 'I was a child'. Output only a valid JSON array of {error_id, correction}. If error_span contains Korean, correction MUST be the English equivalent only.",
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -322,7 +429,7 @@ def api_call_get_corrections(non_key_errors):
 
 
 def _build_louvain_code_list():
-    """AI 오류 유형 분류용: code와 짧은 설명 문자열 (한 줄에 하나씩)."""
+    """AI 오류 유형 분류용: code, 설명, 질문 요약. 분류 시 correction과 질문이 맞는 코드를 고르기 위함."""
     lines = []
     for row in _load_louvain_error_tags():
         code = row.get("code")
@@ -330,7 +437,11 @@ def _build_louvain_code_list():
             continue
         label = (row.get("label_en") or "").strip()
         desc = (row.get("desc_en") or "").strip()
-        lines.append(f"{code}: {label}. {desc}" if desc else f"{code}: {label}")
+        question = (row.get("question") or "").strip()
+        part = f"{code}: {label}. {desc}" if desc else f"{code}: {label}"
+        if question:
+            part += f" [질문: {question[:80]}{'...' if len(question) > 80 else ''}]"
+        lines.append(part)
     return "\n".join(lines)
 
 
@@ -364,18 +475,19 @@ def api_call_classify_errors_to_louvain_batch(
             }
         )
     errors_json = json.dumps(payload, ensure_ascii=False)
-    prompt = f"""Below are errors from an ESL student's writing. Each has sentence, error_span (the wrong part), correction (the fixed form), and description.
-For each error, choose the ONE most appropriate error type code from the list below. Consider what kind of mistake it is (e.g. tense, subject-verb agreement, spelling, word order, verb complementation).
-Return a JSON array with one object per error: {{"error_id": <id>, "code": "<CODE>"}}. Use only codes from the list.
+    prompt = f"""Below are errors from an ESL student's writing. Each has sentence, error_span, **correction** (the actual fixed form), and description.
+For each error, choose the ONE code from the list below whose **[질문]** (question) fits the correction. The code you choose determines which question and examples the learner will see—so pick the code whose question is about the same grammar point as the correction.
+Examples: When the correction is the **same word with only spelling fixed** (e.g. rabit→rabbit, ofen→often), choose the **spelling code (FS)** so the learner sees the spelling question (철자), NOT noun number (복수 -s) or other codes. Correction "he"/"him" → code whose question is about I/me/he/him (GPP). Correction "myself" → code about myself/each other (GPF). Correction "was" → code whose question is about past/present/future tense (GVT).
+Return a JSON array: {{"error_id": <id>, "code": "<CODE>"}}. Use only codes from the list.
 
-Error type list (code + short description):
+Error type list (each line has code, description, and [질문: ...] that the learner will see):
 {code_list}
 
 Errors (JSON):
 {errors_json}
 
 Response (JSON array only):
-[{{"error_id": 0, "code": "GVT"}}, {{"error_id": 1, "code": "FS"}}, ...]"""
+[{{"error_id": 0, "code": "GVT"}}, {{"error_id": 1, "code": "GPP"}}, ...]"""
 
     try:
         response = _openai_chat_with_retry(
@@ -383,7 +495,7 @@ Response (JSON array only):
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert ESL error classifier. Output only a valid JSON array of {error_id, code}. Each code must be exactly one of the codes from the list (e.g. GVT, FS, GVN, WO, XVCO).",
+                    "content": "You are an ESL error classifier. Pick the code whose [질문] matches the correction. Spelling-only fix (e.g. rabit→rabbit) → use FS (spelling), so the learner sees the spelling question. Tense fix (e.g. am→was) → use GVT. Pronoun he/him → GPP; myself → GPF. Output only a valid JSON array of {error_id, code}. Each code must be from the list.",
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -436,6 +548,8 @@ def get_feedback():
         )
 
     if not errors:
+        if student_writing.strip():
+            print(f"[get_feedback] 오류 0건 반환 (원문 길이: {len(student_writing)})")
         return (
             jsonify(
                 {

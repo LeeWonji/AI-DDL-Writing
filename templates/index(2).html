@@ -71,7 +71,10 @@
                     <textarea id="writing" class="memo-box" placeholder="여기에 글을 써 보세요!" required></textarea>
                 </div>
                 <div class="memo-col">
-                    <label for="rewrite" class="section-title">✒️ 고쳐쓰기</label>
+                    <div class="topic-row">
+                        <label for="rewrite" class="section-title">✒️ 고쳐쓰기</label>
+                        <button type="button" id="saveRewriteTxtBtn" class="topic-btn">📄 txt로 저장</button>
+                    </div>
                     <textarea id="rewrite" class="memo-box" placeholder="피드백을 보고 여기에 고쳐 쓰세요!" aria-label="고쳐쓰기"></textarea>
                 </div>
             </div>
@@ -117,6 +120,19 @@
             }
             btn.disabled = false;
             btn.textContent = '🎲 랜덤 주제';
+        });
+
+        document.getElementById('saveRewriteTxtBtn').addEventListener('click', function () {
+            var text = document.getElementById('rewrite').value;
+            var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = '고쳐쓰기_' + new Date().toISOString().slice(0, 10) + '.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         });
 
         function escapeHtml(text) {
@@ -172,7 +188,6 @@
 
         function splitIntoSentences(text) {
             if (!text || !text.trim()) return [];
-            // 문장 부호(. ? !) 뒤의 공백/줄바꿈 기준으로 문장 분리 (lookbehind 미지원 환경 대비)
             var parts = text.trim().split(/([.!?])\s+/);
             var sentences = [];
             for (var i = 0; i < parts.length; i += 2) {
@@ -180,6 +195,48 @@
                 if (s.trim()) sentences.push(s.trim());
             }
             return sentences;
+        }
+
+        function findSpanInText(text, span) {
+            if (!text || !span) return null;
+            var idx = text.indexOf(span);
+            if (idx !== -1) return { index: idx, span: span, length: span.length };
+            if (typeof text.normalize === 'function' && typeof span.normalize === 'function') {
+                var nText = text.normalize('NFC');
+                var nSpan = span.normalize('NFC');
+                idx = nText.indexOf(nSpan);
+                if (idx !== -1) {
+                    var displaySpan = text.slice(idx, idx + nSpan.length);
+                    return { index: idx, span: displaySpan, length: displaySpan.length };
+                }
+            }
+            return null;
+        }
+
+        function buildLeftHtmlFromOriginal(originalText, errorList) {
+            if (!originalText || !errorList.length) return escapeHtml(originalText).replace(/\n/g, '<br>');
+            var text = originalText;
+            if (typeof text.normalize === 'function') text = text.normalize('NFC');
+            var positions = [];
+            for (var i = 0; i < errorList.length; i++) {
+                var err = errorList[i];
+                var span = (err.error_span || '').trim();
+                if (!span) continue;
+                var found = findSpanInText(text, span);
+                if (found) positions.push({ start: found.index, end: found.index + found.length, err: err, span: found.span });
+            }
+            positions.sort(function (a, b) { return a.start - b.start; });
+            var lastEnd = 0;
+            var html = '';
+            for (var j = 0; j < positions.length; j++) {
+                var p = positions[j];
+                if (p.start < lastEnd) continue;
+                html += escapeHtml(text.slice(lastEnd, p.start)).replace(/\n/g, '<br>');
+                html += '<span class="feedback-error-span" data-error-id="' + escapeAttr(String(p.err.id)) + '">' + escapeHtml(p.span) + '</span>';
+                lastEnd = p.end;
+            }
+            html += escapeHtml(text.slice(lastEnd)).replace(/\n/g, '<br>');
+            return html;
         }
 
         document.getElementById('feedbackForm').addEventListener('submit', async function (event) {
@@ -208,18 +265,19 @@
                     var sentences = feedback.sentences || splitIntoSentences(originalText);
 
                     var leftHtml = '';
+                    var hasAnyHighlight = false;
                     for (var i = 0; i < sentences.length; i++) {
                         var sent = sentences[i];
                         var sentErrors = errorList.filter(function (e) {
-                            return sent.indexOf(e.error_span || '') !== -1;
+                            return findSpanInText(sent, (e.error_span || '').trim());
                         });
                         if (sentErrors.length > 0) {
                             var sentText = sent;
                             var errPositions = sentErrors.map(function (err) {
                                 var span = (err.error_span || '').trim();
-                                var idx = span ? sentText.indexOf(span) : -1;
-                                return { err: err, span: span, idx: idx };
-                            }).filter(function (p) { return p.span && p.idx !== -1; });
+                                var found = findSpanInText(sentText, span);
+                                return found ? { err: err, span: found.span, idx: found.index, length: found.length } : null;
+                            }).filter(function (p) { return p && p.span; });
                             errPositions.sort(function (a, b) { return a.idx - b.idx; });
                             var lastEnd = 0;
                             var frag = '';
@@ -227,13 +285,61 @@
                                 var p = errPositions[k];
                                 frag += escapeHtml(sentText.slice(lastEnd, p.idx)).replace(/\n/g, '<br>');
                                 frag += '<span class="feedback-error-span" data-error-id="' + escapeAttr(String(p.err.id)) + '">' + escapeHtml(p.span) + '</span>';
-                                lastEnd = p.idx + p.span.length;
+                                lastEnd = p.idx + p.length;
+                                hasAnyHighlight = true;
                             }
                             frag += escapeHtml(sentText.slice(lastEnd)).replace(/\n/g, '<br>');
                             leftHtml += '<div class="feedback-sentence">' + frag + '</div>';
                         } else {
                             leftHtml += '<div class="feedback-sentence">' + escapeHtml(sent).replace(/\n/g, '<br>') + '</div>';
                         }
+                    }
+                    if (errorList.length > 0 && !hasAnyHighlight) {
+                        var normText = (typeof originalText.normalize === 'function') ? originalText.normalize('NFC') : originalText;
+                        var errPositions = [];
+                        for (var ei = 0; ei < errorList.length; ei++) {
+                            var err = errorList[ei];
+                            var sp = (err.error_span || '').trim();
+                            if (!sp) continue;
+                            var found = findSpanInText(normText, sp);
+                            if (found) errPositions.push({ start: found.index, end: found.index + found.length, err: err, span: found.span });
+                        }
+                        errPositions.sort(function (a, b) { return a.start - b.start; });
+                        var sentStarts = [];
+                        var pos = 0;
+                        var re = /[.!?]\s+/g;
+                        var match;
+                        sentStarts.push(0);
+                        while ((match = re.exec(normText)) !== null) {
+                            pos = match.index + match[0].length;
+                            sentStarts.push(pos);
+                        }
+                        var fallbackParts = [];
+                        for (var fi = 0; fi < sentStarts.length; fi++) {
+                            var sentStart = sentStarts[fi];
+                            var sentEnd = fi + 1 < sentStarts.length ? sentStarts[fi + 1] : normText.length;
+                            var sentText = normText.slice(sentStart, sentEnd);
+                            if (!sentText.trim()) continue;
+                            var inSent = [];
+                            for (var pi = 0; pi < errPositions.length; pi++) {
+                                var p = errPositions[pi];
+                                if (p.start < sentEnd && p.end > sentStart) {
+                                    inSent.push({ start: p.start - sentStart, end: p.end - sentStart, err: p.err, span: p.span });
+                                }
+                            }
+                            var last = 0;
+                            var frag = '';
+                            for (var ki = 0; ki < inSent.length; ki++) {
+                                var q = inSent[ki];
+                                if (q.start < last) continue;
+                                frag += escapeHtml(sentText.slice(last, q.start)).replace(/\n/g, '<br>');
+                                frag += '<span class="feedback-error-span" data-error-id="' + escapeAttr(String(q.err.id)) + '">' + escapeHtml(q.span) + '</span>';
+                                last = q.end;
+                            }
+                            frag += escapeHtml(sentText.slice(last)).replace(/\n/g, '<br>');
+                            fallbackParts.push('<div class="feedback-sentence">' + frag + '</div>');
+                        }
+                        leftHtml = fallbackParts.length ? fallbackParts.join('') : '<div class="feedback-sentence">' + buildLeftHtmlFromOriginal(originalText, errorList) + '</div>';
                     }
                     if (!leftHtml && originalText) {
                         leftHtml = '<div class="feedback-sentence">' + escapeHtml(originalText).replace(/\n/g, '<br>') + '</div>';
