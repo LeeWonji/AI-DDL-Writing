@@ -10,50 +10,47 @@
     <style>
         body { font-family: 'Nunito', Arial, sans-serif; margin: 20px; background: linear-gradient(160deg, #f5ede5 0%, #ede0d4 50%, #e8d9cc 100%); min-height: 100vh; }
         .container { max-width: 1000px; margin: auto; padding: 24px; border: 1px solid #c5d4e8; border-radius: 16px; background: rgba(255,255,255,0.85); box-shadow: 0 4px 20px rgba(0,0,0,0.06); display: flex; flex-direction: column; gap: 20px; }
-        .controls-row { display: flex; gap: 10px; align-items: center; flex-wrap: nowrap; }
-        .controls-row label { margin-top: 0; white-space: nowrap; }
-        .controls-row select { width: auto; min-width: 140px; border-radius: 10px; border-color: #b8d0e8; }
-        .main-row { display: flex; gap: 16px; align-items: stretch; margin-top: 1.5em; }
-        .main-row .writing-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-        .main-row .button-col { display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-        .main-row .button-col button { margin: 0; }
-        .main-row .feedback-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-        #kwic-section { width: 100%; margin-top: 16px; }
-        #kwic-output { font-family: Georgia, 'Times New Roman', serif; font-size: 1.05em; color: #333; background-color: #e8ecf0; padding: 14px; border-radius: 12px; border: 1px solid #d0d8e4; }
-        textarea { width: 100%; padding: 8px; border-radius: 12px; border-color: #d4c4a0; box-sizing: border-box; }
+        .memo-row { display: flex; gap: 16px; align-items: stretch; margin-top: 1.5em; }
+        .memo-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        .memo-col label { margin-bottom: 8px; }
+        .memo-box { flex: 1; min-height: 200px; font-size: 1.1em; padding: 14px; border-radius: 12px; border: 1px solid #d4c4a0; background-color: #fff9c4; box-sizing: border-box; }
+        textarea.memo-box { resize: vertical; font-family: inherit; }
+        .button-row { display: flex; justify-content: center; margin: 12px 0; }
+        .button-row button { margin: 0; }
+        .feedback-section { width: 100%; margin-top: 24px; }
+        .feedback-split { display: flex; gap: 20px; align-items: stretch; margin-top: 12px; }
+        .feedback-left { flex: 1; min-width: 0; }
+        .feedback-right { flex: 1; min-width: 0; min-height: 180px; padding: 16px; border-radius: 12px; border: 1px solid #e0d8f0; background: linear-gradient(135deg, #faf5ff 0%, #f0f4ff 100%); }
+        .feedback-right-empty { color: #888; font-style: italic; }
+        .feedback-sentence { margin-bottom: 12px; line-height: 1.6; }
+        .feedback-error-span { font-weight: bold; color: #e65100; background-color: rgba(230,81,0,0.15); padding: 0 2px; border-radius: 4px; cursor: pointer; }
+        .feedback-error-span:hover { background-color: rgba(230,81,0,0.25); }
+        .feedback-error-span-selected { background-color: rgba(92,107,192,0.3) !important; color: #3949ab; box-shadow: 0 0 0 2px #5c6bc0; }
+        .feedback-right .stage-question { margin-bottom: 12px; font-size: 1.05em; }
+        .feedback-right .stage-example { margin: 12px 0; padding: 10px; background: #fff; border-radius: 8px; border: 1px solid #e0e0e0; }
+        .feedback-right .stage-cause { margin: 10px 0; padding: 10px; background: #fff8e1; border-radius: 8px; border-left: 4px solid #ffa000; font-size: 0.95em; color: #5d4037; }
+        .example-highlight { font-weight: 800; background: linear-gradient(180deg, #e0e0e0 0%, #bdbdbd 100%); color: #000; padding: 1px 4px; border-radius: 4px; }
+        .feedback-right .stage-correction { margin: 12px 0; padding: 10px; background: #e8f5e9; border-radius: 8px; font-weight: bold; }
+        .feedback-btn { margin-top: 8px; padding: 8px 16px; border-radius: 8px; border: 1px solid #5c6bc0; background: #5c6bc0; color: white; cursor: pointer; font-size: 0.95rem; }
+        .feedback-btn:hover { background: #4a56a8; }
+        .feedback-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .page-title { font-family: 'Jua', sans-serif; font-size: 2rem; color: #2c3e6b; text-align: center; margin-bottom: 0; }
         .page-tagline { text-align: center; font-size: 0.95rem; color: #5a6b8a; margin: 0.2em 0 1em 0; }
         .section-title { font-family: 'Jua', sans-serif; font-size: 1.3rem; font-weight: normal; color: #2c3e6b; margin: 0 0 8px 0; }
         label { display: block; margin-top: 10px; font-weight: bold; }
-        input[type="file"], input[type="text"], textarea, select { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; }
-        button { background: linear-gradient(180deg, #5c6bc0 0%, #4a56a8 100%); color: white; padding: 12px 20px; border: none; border-radius: 12px; cursor: pointer; margin-top: 10px; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 1rem; box-shadow: 0 2px 8px rgba(92,107,192,0.3); }
+        button { background: linear-gradient(180deg, #5c6bc0 0%, #4a56a8 100%); color: white; padding: 12px 20px; border: none; border-radius: 12px; cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 1rem; box-shadow: 0 2px 8px rgba(92,107,192,0.3); }
         button:hover { background: linear-gradient(180deg, #6c7bd0 0%, #5a66b8 100%); box-shadow: 0 3px 12px rgba(92,107,192,0.4); }
         button:disabled { opacity: 0.8; cursor: not-allowed; }
-        .error { color: red; }
-        mark { background-color: #fff59d; padding: 0 3px; border-radius: 4px; }
-        .corrected-hint { margin: 0 0 8px 0; font-size: 14px; color: #555; }
         .feedback-disclaimer { margin: 10px 0 0 0; font-size: 13px; color: #777; }
-        .feedback-text { white-space: pre-wrap; line-height: 1.6; padding: 15px; background: linear-gradient(135deg, #faf5ff 0%, #f0f4ff 100%); border: 1px solid #e0d8f0; border-radius: 12px; }
-        .feedback-error { font-weight: bold; cursor: help; border-radius: 4px; }
-        .feedback-error.key-expr { background-color: #fff59d; cursor: pointer; padding: 0 2px; }
-        .feedback-error.key-expr:hover { background-color: #ffeb3b; }
-        #kwic-section.kwic-hidden { display: none; }
-        .kwic-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
-        .kwic-header h2 { margin: 0; }
-        .kwic-toggle { font-size: 13px; padding: 6px 12px; border-radius: 8px; border: 1px solid #c5d4e8; background: #fff; cursor: pointer; color: #2c3e6b; }
-        .kwic-toggle:hover { background: #f0f4ff; }
-        #kwic-section.kwic-collapsed .kwic-content { display: none; }
-        .scribble-mode-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
-        .scribble-mode-label { font-size: 0.95rem; font-weight: 600; color: #2c3e6b; }
-        .scribble-mode-btn { width: 36px; height: 36px; padding: 0; margin: 0; font-weight: 700; font-size: 1.1rem; border-radius: 10px; }
-        .scribble-mode-btn.active { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #5c6bc0; }
-        .scribble-split { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; }
-        .scribble-hint-box { min-height: 67px; padding: 12px 14px; border-radius: 12px; border: 1px solid #d4c4a0; background: #f5f0e8; font-size: 1.1em; line-height: 1.5; white-space: pre-wrap; overflow-y: auto; color: #333; }
-        .scribble-hint-box:empty::before { content: '힌트를 불러오면 여기에 표시돼요.'; color: #888; }
-        .scribble-hint-box .scribble-hint-kr { font-size: 0.8em; color: #777; }
-        .scribble-writing-box { flex: 1; min-height: 180px; font-size: 1.5em; background-color: #fff9c4; border-radius: 12px; border-color: #d4c4a0; }
+        .ai-generated { color: #2563eb; }
         .top-banner { display: inline-flex; align-items: center; gap: 8px; width: fit-content; margin-bottom: 12px; padding: 8px 14px; background: linear-gradient(135deg, #5c6bc0 0%, #4a56a8 100%); color: white; text-decoration: none; font-family: 'Jua', sans-serif; font-size: 1.2rem; border-radius: 0 0 12px 0; box-shadow: 0 2px 10px rgba(92,107,192,0.35); }
         .top-banner:hover { background: linear-gradient(135deg, #6c7bd0 0%, #5a66b8 100%); color: white; }
+        .topic-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+        .topic-row .section-title { margin: 0; }
+        .topic-btn { padding: 8px 14px; font-size: 0.9rem; }
+        .topic-display { min-height: 24px; margin-bottom: 8px; font-size: 0.95rem; color: #5a6b8a; }
+        .topic-display:not(:empty)::before { content: '오늘의 주제: '; font-weight: 600; color: #2c3e6b; }
+        .scribble-hints { margin: 12px 0 0 0; font-size: 0.9rem; color: #5a6b8a; line-height: 1.6; }
     </style>
 </head>
 <body>
@@ -63,124 +60,83 @@
         <p class="page-tagline">영어 단서를 찾고, 문장을 탐정처럼 고쳐보세요!</p>
 
         <form id="feedbackForm">
-            <div class="controls-row">
-                <label for="grade">학년:</label>
-                <select id="grade" required>
-                    <option value="">학년 선택</option>
-                    <option value="3">3학년</option>
-                    <option value="4">4학년</option>
-                    <option value="5">5학년</option>
-                    <option value="6">6학년</option>
-                </select>
-
-                <label for="publisher">출판사:</label>
-                <select id="publisher" required>
-                    <option value="">출판사 선택</option>
-                </select>
-
-                <label for="unit">단원:</label>
-                <select id="unit" required>
-                    <option value="">단원 선택</option>
-                </select>
-            </div>
-
-            <div class="main-row">
-                <div class="writing-col">
-                    <label for="writing" class="section-title">✏️ 끄적끄적</label>
-                    <div class="scribble-mode-row">
-                        <span class="scribble-mode-label">힌트 모드:</span>
-                        <button type="button" class="scribble-mode-btn" data-mode="1" title="핵심 표현 빈칸 + 한국어 뜻">1</button>
-                        <button type="button" class="scribble-mode-btn" data-mode="2" title="핵심 표현 빈칸만">2</button>
-                        <button type="button" class="scribble-mode-btn" data-mode="3" title="한국어 스크립트만">3</button>
-                        <button type="button" class="scribble-mode-btn" data-mode="4" title="힌트 없음">4</button>
+            <div class="memo-row">
+                <div class="memo-col">
+                    <div class="topic-row">
+                        <label for="writing" class="section-title">✏️ 끄적끄적</label>
+                        <button type="button" id="randomTopicBtn" class="topic-btn">🎲 랜덤 주제</button>
                     </div>
-                    <div class="scribble-split">
-                        <div id="scribble-hint" class="scribble-hint-box" aria-label="힌트">힌트를 불러오면 여기에 표시돼요.</div>
-                        <textarea id="writing" class="scribble-writing-box" placeholder="여기에 글을 써 보세요!" required></textarea>
-                    </div>
-                </div>
-                <div class="button-col">
-                    <button type="submit" id="feedbackSubmitBtn">단서 확인하기</button>
-                </div>
-                <div class="feedback-col">
-                    <h2 class="section-title">👩‍🏫 AI 피드백</h2>
-                    <p class="corrected-hint">
-                        • <strong>굵은</strong> 글씨 위에 마우스를 올리면 고친 형태가 보여요.<br>
-                        • <mark>노란색</mark>은 이 단원의 핵심 표현을 틀린 거예요. 클릭해보세요!
+                    <p class="scribble-hints">
+                        📖 교과서 대화문을 참고해서 글을 써보아요.<br>
+                        🎲 랜덤 주제 버튼을 눌러서 글을 쓸 수도 있어요.
                     </p>
-                    <div id="feedback-text-output" class="feedback-text"></div>
-                    <p class="feedback-disclaimer">⚠️ AI도 가끔 실수를 한답니다.</p>
+                    <div id="topic-display" class="topic-display"></div>
+                    <textarea id="writing" class="memo-box" placeholder="여기에 글을 써 보세요!" required></textarea>
+                </div>
+                <div class="memo-col">
+                    <div class="topic-row">
+                        <label for="rewrite" class="section-title">✒️ 고쳐쓰기</label>
+                        <button type="button" id="saveRewriteTxtBtn" class="topic-btn">📄 txt로 저장</button>
+                    </div>
+                    <textarea id="rewrite" class="memo-box" placeholder="피드백을 보고 여기에 고쳐 쓰세요!" aria-label="고쳐쓰기"></textarea>
                 </div>
             </div>
 
-            <div id="kwic-section" class="kwic-hidden">
-                <div class="kwic-header">
-                    <h2 class="section-title">📖 이 단원 단서 예문</h2>
-                    <button type="button" class="kwic-toggle" id="kwic-toggle-btn" aria-label="접기">접기</button>
+            <div class="button-row">
+                <button type="submit" id="feedbackSubmitBtn">단서 확인하기</button>
+            </div>
+
+            <div class="feedback-section">
+                <h2 class="section-title">👩‍🏫 AI 피드백</h2>
+                <p style="margin: 0 0 8px 0; font-size: 14px; color: #555;">
+                    오류 부분(주황색)을 클릭하면 단계별로 힌트를 볼 수 있어요.
+                </p>
+                <div class="feedback-split">
+                    <div class="feedback-left" id="feedback-left-output"></div>
+                    <div class="feedback-right" id="feedback-right-output">
+                        <span class="feedback-right-empty">오류 부분을 클릭해 보세요.</span>
+                    </div>
                 </div>
-                <div class="kwic-content">
-                    <div id="kwic-output" class="feedback-output-box"></div>
-                </div>
+                <p class="feedback-disclaimer">⚠️ AI도 가끔 실수를 한답니다.</p>
+                <p class="feedback-disclaimer"><span class="ai-generated">파란색</span>으로 쓰여진 문장은 AI가 생성한 문장입니다.</p>
             </div>
         </form>
-
     </div>
 
     <script>
-        const publishers_34 = [
-            'YBM(김)',
-            'YBM(최)',
-            '동아(윤)',
-            '미래엔(강)',
-            '아이스크림(박)',
-            '천재(김)',
-            '천재(이)',
-            '천재(함)'
-        ];
-        const publishers_56 = [
-            'YBM(김)',
-            'YBM(최)',
-            '동아(정)',
-            '미래엔(강)',
-            '비상(우)',
-            '아이스크림(박)',
-            '천재(김)',
-            '천재(이)',
-            '천재(함)'
-        ];
-
-        function getPublisherListByGrade(grade) {
-            if (grade === '3' || grade === '4') return publishers_34;
-            if (grade === '5' || grade === '6') return publishers_56;
-            return [];
-        }
-
-        function getUnitCountByGrade(grade) {
-            if (grade === '3' || grade === '4') return 10;
-            if (grade === '5' || grade === '6') return 12;
-            return 0;
-        }
-
-        function setOptions(selectEl, placeholderText, options, valueFormatter) {
-            const current = selectEl.value;
-            selectEl.innerHTML = '';
-            const ph = document.createElement('option');
-            ph.value = '';
-            ph.textContent = placeholderText;
-            selectEl.appendChild(ph);
-
-            options.forEach((opt, idx) => {
-                const o = document.createElement('option');
-                o.value = valueFormatter ? valueFormatter(opt, idx) : opt;
-                o.textContent = opt;
-                selectEl.appendChild(o);
-            });
-
-            // keep selection if still valid
-            if ([...selectEl.options].some(o => o.value === current)) {
-                selectEl.value = current;
+        document.getElementById('randomTopicBtn').addEventListener('click', async function () {
+            var btn = this;
+            var display = document.getElementById('topic-display');
+            btn.disabled = true;
+            btn.textContent = '생성 중...';
+            display.textContent = '';
+            try {
+                var res = await fetch('/api/random-topic');
+                var data = await res.json();
+                if (res.ok && data.topic) {
+                    display.textContent = data.topic;
+                } else {
+                    display.textContent = '주제를 불러오지 못했어요. 다시 시도해 주세요.';
+                }
+            } catch (e) {
+                display.textContent = '주제를 불러오지 못했어요.';
             }
-        }
+            btn.disabled = false;
+            btn.textContent = '🎲 랜덤 주제';
+        });
+
+        document.getElementById('saveRewriteTxtBtn').addEventListener('click', function () {
+            var text = document.getElementById('rewrite').value;
+            var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = '고쳐쓰기_' + new Date().toISOString().slice(0, 10) + '.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
 
         function escapeHtml(text) {
             if (text == null) return '';
@@ -199,184 +155,283 @@
                 .replace(/>/g, '&gt;');
         }
 
-        /** Build annotated HTML from original_text and error_list (each: error_span, correction, is_key_expression). */
-        function buildFeedbackHtml(originalText, errorList) {
+        function formatExampleWithBold(text) {
+            if (text == null || text === '') return '';
+            var result = '';
+            var re = /\*\*(.+?)\*\*/g;
+            var lastIndex = 0;
+            var match;
+            while ((match = re.exec(text)) !== null) {
+                result += escapeHtml(text.slice(lastIndex, match.index));
+                result += '<span class="example-highlight">' + escapeHtml(match[1]) + '</span>';
+                lastIndex = re.lastIndex;
+            }
+            result += escapeHtml(text.slice(lastIndex));
+            return result;
+        }
+
+        function buildLeftHtml(originalText, errorList) {
             if (!originalText) return '';
             if (!errorList || errorList.length === 0) return escapeHtml(originalText).replace(/\n/g, '<br>');
 
-            let html = '';
-            let lastEnd = 0;
             var text = originalText;
             if (typeof text.normalize === 'function') text = text.normalize('NFC');
 
-            for (const err of errorList) {
+            var errorsByPos = [];
+            for (var i = 0; i < errorList.length; i++) {
+                var err = errorList[i];
                 var span = (err.error_span || '').trim();
                 if (!span) continue;
                 if (typeof span.normalize === 'function') span = span.normalize('NFC');
-                var idx = text.indexOf(span, lastEnd);
-                if (idx === -1) continue;
+                var idx = text.indexOf(span);
+                if (idx !== -1) {
+                    errorsByPos.push({ start: idx, end: idx + span.length, err: err, span: span });
+                }
+            }
+            errorsByPos.sort(function (a, b) { return a.start - b.start; });
 
-                html += escapeHtml(text.slice(lastEnd, idx)).replace(/\n/g, '<br>');
-                const isKeyExpr = !!err.is_key_expression;
-                const cls = 'feedback-error' + (isKeyExpr ? ' key-expr' : '');
-                const titleText = isKeyExpr ? '단서 예문 참고하기' : (err.correction != null ? String(err.correction) : '');
-                const dataCorrection = isKeyExpr ? '' : (err.correction != null ? String(err.correction) : '');
-                html += '<span class="' + escapeAttr(cls) + '" data-correction="' + escapeAttr(dataCorrection) + '" title="' + escapeAttr(titleText) + '">';
-                html += escapeHtml(span);
+            var html = '';
+            var lastEnd = 0;
+            for (var j = 0; j < errorsByPos.length; j++) {
+                var e = errorsByPos[j];
+                html += escapeHtml(text.slice(lastEnd, e.start)).replace(/\n/g, '<br>');
+                html += '<span class="feedback-error-span" data-error-id="' + escapeAttr(String(e.err.id)) + '">';
+                html += escapeHtml(e.span);
                 html += '</span>';
-                lastEnd = idx + span.length;
+                lastEnd = e.end;
             }
             html += escapeHtml(text.slice(lastEnd)).replace(/\n/g, '<br>');
             return html;
         }
 
-        // dynamic dropdowns
-        const gradeSelect = document.getElementById('grade');
-        const publisherSelect = document.getElementById('publisher');
-        const unitSelect = document.getElementById('unit');
-
-        function refreshPublisherAndUnits() {
-            const grade = gradeSelect.value;
-            const pubs = getPublisherListByGrade(grade);
-            setOptions(publisherSelect, '출판사 선택', pubs);
-
-            const unitCount = getUnitCountByGrade(grade);
-            const units = Array.from({ length: unitCount }, (_, i) => `${i + 1}단원`);
-            setOptions(unitSelect, '단원 선택', units, (_label, idx) => `Unit ${idx + 1}`);
+        function splitIntoSentences(text) {
+            if (!text || !text.trim()) return [];
+            var parts = text.trim().split(/([.!?])\s+/);
+            var sentences = [];
+            for (var i = 0; i < parts.length; i += 2) {
+                var s = (parts[i] || '') + (parts[i + 1] || '');
+                if (s.trim()) sentences.push(s.trim());
+            }
+            return sentences;
         }
 
-        gradeSelect.addEventListener('change', refreshPublisherAndUnits);
-        refreshPublisherAndUnits();
-
-        // 끄적끄적 모드 1,2,3,4 버튼 → 위쪽 힌트 칸에 표시, 아래쪽은 글쓰기 칸(비움)
-        (function () {
-            var hintEl = document.getElementById('scribble-hint');
-            var writingEl = document.getElementById('writing');
-            var scribbleBtns = document.querySelectorAll('.scribble-mode-btn');
-            scribbleBtns.forEach(function (btn) {
-                btn.addEventListener('click', async function () {
-                    var grade = gradeSelect.value;
-                    var publisher = publisherSelect.value;
-                    var unit = unitSelect.value;
-                    var mode = btn.getAttribute('data-mode') || '1';
-                    if (!grade || !publisher || !unit) {
-                        alert('학년, 출판사, 단원을 먼저 선택해 주세요.');
-                        return;
-                    }
-                    scribbleBtns.forEach(function (b) { b.classList.remove('active'); });
-                    btn.classList.add('active');
-                    writingEl.placeholder = '여기에 글을 써 보세요!';
-                    if (mode === '4') {
-                        hintEl.textContent = '배운 표현을 사용해서 자유롭게 글을 써보세요!';
-                        writingEl.value = '';
-                        return;
-                    }
-                    try {
-                        var params = new URLSearchParams({ grade: grade, publisher: publisher, unit: unit, mode: mode });
-                        var res = await fetch('/api/scribble-prompt?' + params.toString());
-                        var data = await res.json();
-                        var hint = (data.hint != null) ? String(data.hint) : '';
-                        var displayText = hint || '이 단원 힌트가 없어요.';
-                        if (mode === '1' && hint) {
-                            // 모드 1: [한국어] 부분만 작은 회색으로
-                            var parts = [];
-                            var re = /\[([^\]]+)\]/g;
-                            var last = 0;
-                            var match;
-                            while ((match = re.exec(hint)) !== null) {
-                                parts.push(escapeHtml(hint.slice(last, match.index)));
-                                parts.push('<span class="scribble-hint-kr">' + escapeHtml(match[1]) + '</span>');
-                                last = re.lastIndex;
-                            }
-                            parts.push(escapeHtml(hint.slice(last)));
-                            hintEl.innerHTML = parts.join('');
-                        } else {
-                            hintEl.textContent = displayText;
-                        }
-                        writingEl.value = '';
-                    } catch (e) {
-                        console.error(e);
-                        hintEl.textContent = '힌트를 불러오지 못했어요.';
-                        writingEl.value = '';
-                    }
-                });
-            });
-        })();
-
-        (function () {
-            var kwicSection = document.getElementById('kwic-section');
-            var kwicToggleBtn = document.getElementById('kwic-toggle-btn');
-            if (kwicSection && kwicToggleBtn) {
-                kwicToggleBtn.addEventListener('click', function () {
-                    if (kwicSection.classList.contains('kwic-collapsed')) {
-                        kwicSection.classList.remove('kwic-collapsed');
-                        kwicToggleBtn.textContent = '접기';
-                        kwicToggleBtn.setAttribute('aria-label', '접기');
-                    } else {
-                        kwicSection.classList.add('kwic-collapsed');
-                        kwicToggleBtn.textContent = '펼치기';
-                        kwicToggleBtn.setAttribute('aria-label', '펼치기');
-                    }
-                });
+        function findSpanInText(text, span) {
+            if (!text || !span) return null;
+            var idx = text.indexOf(span);
+            if (idx !== -1) return { index: idx, span: span, length: span.length };
+            if (typeof text.normalize === 'function' && typeof span.normalize === 'function') {
+                var nText = text.normalize('NFC');
+                var nSpan = span.normalize('NFC');
+                idx = nText.indexOf(nSpan);
+                if (idx !== -1) {
+                    var displaySpan = text.slice(idx, idx + nSpan.length);
+                    return { index: idx, span: displaySpan, length: displaySpan.length };
+                }
             }
-        })();
+            return null;
+        }
 
-        document.getElementById('feedbackForm').addEventListener('submit', async (event) => {
+        function buildLeftHtmlFromOriginal(originalText, errorList) {
+            if (!originalText || !errorList.length) return escapeHtml(originalText).replace(/\n/g, '<br>');
+            var text = originalText;
+            if (typeof text.normalize === 'function') text = text.normalize('NFC');
+            var positions = [];
+            for (var i = 0; i < errorList.length; i++) {
+                var err = errorList[i];
+                var span = (err.error_span || '').trim();
+                if (!span) continue;
+                var found = findSpanInText(text, span);
+                if (found) positions.push({ start: found.index, end: found.index + found.length, err: err, span: found.span });
+            }
+            positions.sort(function (a, b) { return a.start - b.start; });
+            var lastEnd = 0;
+            var html = '';
+            for (var j = 0; j < positions.length; j++) {
+                var p = positions[j];
+                if (p.start < lastEnd) continue;
+                html += escapeHtml(text.slice(lastEnd, p.start)).replace(/\n/g, '<br>');
+                html += '<span class="feedback-error-span" data-error-id="' + escapeAttr(String(p.err.id)) + '">' + escapeHtml(p.span) + '</span>';
+                lastEnd = p.end;
+            }
+            html += escapeHtml(text.slice(lastEnd)).replace(/\n/g, '<br>');
+            return html;
+        }
+
+        document.getElementById('feedbackForm').addEventListener('submit', async function (event) {
             event.preventDefault();
-            const grade = document.getElementById('grade').value;
-            const publisher = document.getElementById('publisher').value;
-            const unit = document.getElementById('unit').value;
-            const writing = document.getElementById('writing').value;
-            const submitBtn = document.getElementById('feedbackSubmitBtn');
-            const feedbackTextOutput = document.getElementById('feedback-text-output');
-            const kwicSection = document.getElementById('kwic-section');
-            const kwicOutput = document.getElementById('kwic-output');
+            var writing = document.getElementById('writing').value;
+            var submitBtn = document.getElementById('feedbackSubmitBtn');
+            var leftOutput = document.getElementById('feedback-left-output');
+            var rightOutput = document.getElementById('feedback-right-output');
 
-            feedbackTextOutput.innerHTML = '';
-            kwicOutput.innerHTML = '';
-            kwicSection.classList.add('kwic-hidden');
+            leftOutput.innerHTML = '';
+            rightOutput.innerHTML = '<span class="feedback-right-empty">오류 부분을 클릭해 보세요.</span>';
             submitBtn.textContent = '단서 확인 중...';
             submitBtn.disabled = true;
 
             try {
-                const response = await fetch('/feedback', {
+                var response = await fetch('/feedback', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ grade, publisher, unit, writing })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ writing: writing })
                 });
-                const result = await response.json();
+                var result = await response.json();
                 if (response.ok) {
-                    const feedback = result.feedback;
-                    const errorList = feedback.error_list || [];
-                    const originalText = feedback.original_text || '';
+                    var feedback = result.feedback;
+                    var errorList = feedback.error_list || [];
+                    var originalText = feedback.original_text || '';
+                    var sentences = feedback.sentences || splitIntoSentences(originalText);
 
-                    feedbackTextOutput.innerHTML = buildFeedbackHtml(originalText, errorList);
+                    var leftHtml = '';
+                    var hasAnyHighlight = false;
+                    for (var i = 0; i < sentences.length; i++) {
+                        var sent = sentences[i];
+                        var sentErrors = errorList.filter(function (e) {
+                            return findSpanInText(sent, (e.error_span || '').trim());
+                        });
+                        if (sentErrors.length > 0) {
+                            var sentText = sent;
+                            var errPositions = sentErrors.map(function (err) {
+                                var span = (err.error_span || '').trim();
+                                var found = findSpanInText(sentText, span);
+                                return found ? { err: err, span: found.span, idx: found.index, length: found.length } : null;
+                            }).filter(function (p) { return p && p.span; });
+                            errPositions.sort(function (a, b) { return a.idx - b.idx; });
+                            var lastEnd = 0;
+                            var frag = '';
+                            for (var k = 0; k < errPositions.length; k++) {
+                                var p = errPositions[k];
+                                frag += escapeHtml(sentText.slice(lastEnd, p.idx)).replace(/\n/g, '<br>');
+                                frag += '<span class="feedback-error-span" data-error-id="' + escapeAttr(String(p.err.id)) + '">' + escapeHtml(p.span) + '</span>';
+                                lastEnd = p.idx + p.length;
+                                hasAnyHighlight = true;
+                            }
+                            frag += escapeHtml(sentText.slice(lastEnd)).replace(/\n/g, '<br>');
+                            leftHtml += '<div class="feedback-sentence">' + frag + '</div>';
+                        } else {
+                            leftHtml += '<div class="feedback-sentence">' + escapeHtml(sent).replace(/\n/g, '<br>') + '</div>';
+                        }
+                    }
+                    if (errorList.length > 0 && !hasAnyHighlight) {
+                        var normText = (typeof originalText.normalize === 'function') ? originalText.normalize('NFC') : originalText;
+                        var errPositions = [];
+                        for (var ei = 0; ei < errorList.length; ei++) {
+                            var err = errorList[ei];
+                            var sp = (err.error_span || '').trim();
+                            if (!sp) continue;
+                            var found = findSpanInText(normText, sp);
+                            if (found) errPositions.push({ start: found.index, end: found.index + found.length, err: err, span: found.span });
+                        }
+                        errPositions.sort(function (a, b) { return a.start - b.start; });
+                        var sentStarts = [];
+                        var pos = 0;
+                        var re = /[.!?]\s+/g;
+                        var match;
+                        sentStarts.push(0);
+                        while ((match = re.exec(normText)) !== null) {
+                            pos = match.index + match[0].length;
+                            sentStarts.push(pos);
+                        }
+                        var fallbackParts = [];
+                        for (var fi = 0; fi < sentStarts.length; fi++) {
+                            var sentStart = sentStarts[fi];
+                            var sentEnd = fi + 1 < sentStarts.length ? sentStarts[fi + 1] : normText.length;
+                            var sentText = normText.slice(sentStart, sentEnd);
+                            if (!sentText.trim()) continue;
+                            var inSent = [];
+                            for (var pi = 0; pi < errPositions.length; pi++) {
+                                var p = errPositions[pi];
+                                if (p.start < sentEnd && p.end > sentStart) {
+                                    inSent.push({ start: p.start - sentStart, end: p.end - sentStart, err: p.err, span: p.span });
+                                }
+                            }
+                            var last = 0;
+                            var frag = '';
+                            for (var ki = 0; ki < inSent.length; ki++) {
+                                var q = inSent[ki];
+                                if (q.start < last) continue;
+                                frag += escapeHtml(sentText.slice(last, q.start)).replace(/\n/g, '<br>');
+                                frag += '<span class="feedback-error-span" data-error-id="' + escapeAttr(String(q.err.id)) + '">' + escapeHtml(q.span) + '</span>';
+                                last = q.end;
+                            }
+                            frag += escapeHtml(sentText.slice(last)).replace(/\n/g, '<br>');
+                            fallbackParts.push('<div class="feedback-sentence">' + frag + '</div>');
+                        }
+                        leftHtml = fallbackParts.length ? fallbackParts.join('') : '<div class="feedback-sentence">' + buildLeftHtmlFromOriginal(originalText, errorList) + '</div>';
+                    }
+                    if (!leftHtml && originalText) {
+                        leftHtml = '<div class="feedback-sentence">' + escapeHtml(originalText).replace(/\n/g, '<br>') + '</div>';
+                    }
+                    leftOutput.innerHTML = leftHtml || escapeHtml(originalText).replace(/\n/g, '<br>');
 
-                    kwicOutput.innerHTML = (feedback.kwic_examples || '').replace(/\*\*/g, '').replace(/\n/g, '<br>');
+                    var errorMap = {};
+                    for (var m = 0; m < errorList.length; m++) {
+                        errorMap[String(errorList[m].id)] = errorList[m];
+                    }
 
-                    feedbackTextOutput.querySelectorAll('.feedback-error.key-expr').forEach(function (el) {
+                    leftOutput.querySelectorAll('.feedback-error-span').forEach(function (el) {
                         el.addEventListener('click', function () {
-                            kwicSection.classList.remove('kwic-hidden');
-                            kwicSection.classList.remove('kwic-collapsed');
-                            var btn = document.getElementById('kwic-toggle-btn');
-                            if (btn) { btn.textContent = '접기'; btn.setAttribute('aria-label', '접기'); }
-                            kwicSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            var errId = el.getAttribute('data-error-id');
+                            var err = errorMap[errId];
+                            if (!err) return;
+
+                            leftOutput.querySelectorAll('.feedback-error-span').forEach(function (s) { s.classList.remove('feedback-error-span-selected'); });
+                            el.classList.add('feedback-error-span-selected');
+
+                            var state = { step: 2, exampleShown: false, correctionShown: false };
+                            var question = err.question || '이 부분을 다시 확인해 보세요.';
+                            var questionSource = err.question_source || 'ai';
+                            var exampleSentences = err.example_sentences || [];
+
+                            function renderRight() {
+                                var questionHtml = questionSource === 'ai'
+                                    ? '<span class="ai-generated">' + escapeHtml(question) + '</span>'
+                                    : escapeHtml(question);
+                                var html = '<div class="stage-question">' + questionHtml + '</div>';
+                                html += '<button type="button" class="feedback-btn" id="btn-example">예문 보기</button>';
+                                html += '<div id="example-area" style="display:none;"></div>';
+                                html += '<button type="button" class="feedback-btn" id="btn-correction" style="display:none;">정답 보기</button>';
+                                html += '<div id="correction-area" style="display:none;"></div>';
+                                rightOutput.innerHTML = html;
+
+                                document.getElementById('btn-example').addEventListener('click', function () {
+                                    var exampleParts = [];
+                                    if (exampleSentences.length > 0) {
+                                        for (var k = 0; k < exampleSentences.length; k++) {
+                                            var item = exampleSentences[k];
+                                            var t = (item && item.text) ? item.text : '';
+                                            var src = (item && item.source) ? item.source : 'ai';
+                                            if (t) {
+                                                var formatted = formatExampleWithBold(t);
+                                                exampleParts.push(src === 'ai' ? '<span class="ai-generated">' + formatted + '</span>' : formatted);
+                                            }
+                                        }
+                                    }
+                                    var exampleContent = exampleParts.length ? exampleParts.join('<br>') : escapeHtml('예문 없음');
+                                    document.getElementById('example-area').style.display = 'block';
+                                    document.getElementById('example-area').innerHTML = '<div class="stage-example">' + exampleContent + '</div>';
+                                    document.getElementById('btn-correction').style.display = 'inline-block';
+                                });
+
+                                document.getElementById('btn-correction').addEventListener('click', function () {
+                                    var cor = (err.correction !== undefined && err.correction !== null) ? String(err.correction) : '';
+                                    document.getElementById('correction-area').style.display = 'block';
+                                    document.getElementById('correction-area').innerHTML = '<div class="stage-correction">' + escapeHtml(err.error_span || '') + ' → ' + escapeHtml(cor) + '</div>';
+                                });
+                            }
+                            renderRight();
                         });
                     });
 
                     submitBtn.textContent = '단서 도착!';
                     submitBtn.disabled = false;
                 } else {
-                    console.error('Error response from server:', result);
-                    feedbackTextOutput.innerHTML = escapeHtml(`오류: ${result.error || JSON.stringify(result)}`);
+                    rightOutput.innerHTML = escapeHtml('오류: ' + (result.error || JSON.stringify(result)));
                     submitBtn.textContent = '단서 확인하기';
                     submitBtn.disabled = false;
                 }
             } catch (error) {
-                console.error('Network or parsing error:', error);
-                feedbackTextOutput.innerHTML = escapeHtml(`네트워크 오류: ${error.message}`);
+                rightOutput.innerHTML = escapeHtml('네트워크 오류: ' + error.message);
                 submitBtn.textContent = '단서 확인하기';
                 submitBtn.disabled = false;
             }
