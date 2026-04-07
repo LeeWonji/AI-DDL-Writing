@@ -1,0 +1,16 @@
+id,grade,publisher,unit,error_pattern,question,example_sentences,priority
+1,"6학년","YBM(최희경)","1단원","What grade you in?","질문 문장에서 be동사(am/is/are)가 빠지지 않았는지 확인해 볼까요?","What **grade** are you in?|I am in the **sixth grade**.|What grade is she in?",10
+2,"6학년","YBM(최희경)","1단원","What grade are you?","학년을 물을 때 전치사 in이 필요한지 떠올려 볼까요?","What grade are you **in**?|I am in the fourth grade.|He is in the fifth grade.",12
+3,"6학년","YBM(최희경)","1단원","I'm sixth grade.","학년을 말할 때 in + the + 서수 형태를 쓰고 있는지 확인해 볼까요?","I am **in the sixth grade**.|She is in the third grade.|They are in the second grade.",10
+4,"6학년","YBM(최희경)","1단원","I'm in sixth grade.","서수를 말할 때 앞에 the를 붙여야 하는지 생각해 볼까요?","I am in **the** sixth grade.|He is in the first grade.|We are in the fourth grade.",11
+5,"6학년","YBM(최희경)","1단원","I'm in the six grade.","순서를 나타내는 수는 기수(six) 대신 서수(sixth)를 쓰는지 점검해 볼까요?","I am in the **sixth** grade.|My classroom is on the **fourth** floor.|Today is my **third** class.",9
+6,"6학년","YBM(최희경)","1단원","Where your classroom?","의문문에서 be동사 위치가 주어 앞에 오는지 확인해 볼까요?","**Where is** your classroom?|Where is the music room?|Where is her desk?",10
+7,"6학년","YBM(최희경)","1단원","Where is you classroom?","your와 you의 쓰임이 알맞은지 확인해 볼까요?","Where is **your** classroom?|Your classroom is bright.|I like your school.",12
+8,"6학년","YBM(최희경)","1단원","It is in the fourth floor.","층을 말할 때 전치사 on을 쓰는지 확인해 볼까요?","It is **on** the fourth floor.|The library is on the second floor.|My class is on the third floor.",10
+9,"6학년","YBM(최희경)","1단원","It is on fourth floor.","서수 앞에 관사 the를 넣었는지 살펴볼까요?","It is on **the** fourth floor.|The office is on the first floor.|The lab is on the fifth floor.",11
+10,"6학년","YBM(최희경)","1단원","It are on the fourth floor.","주어가 단수(it)일 때 be동사를 is로 썼는지 확인해 볼까요?","It **is** on the fourth floor.|It is near the stairs.|It is very clean.",9
+11,"6학년","YBM(최희경)","1단원","Our school have an English room.","주어가 단수(our school)일 때 동사 has를 써야 하는지 확인해 볼까요?","Our school **has** an English room.|My school has a big gym.|The school has a music room.",8
+12,"6학년","YBM(최희경)","1단원","Our school has English room.","단수 명사 앞에 a/an 같은 관사가 필요한지 떠올려 볼까요?","Our school has **an** English room.|We have an art room.|She has an umbrella.",11
+13,"6학년","YBM(최희경)","1단원","Our school has a English room.","영어 room 앞에서는 a와 an 중 어떤 관사를 써야 할까요?","Our school has **an** English room.|He has an eraser.|I saw an elephant.",10
+14,"6학년","YBM(최희경)","1단원","Where is your classroom at?","교실 위치를 물을 때 불필요한 전치사가 들어가지는 않았는지 볼까요?","Where is your classroom?|Where is the nurse's office?|Where is our class?",14
+15,"6학년","YBM(최희경)","1단원","I am at the sixth grade.","학년을 말할 때 at 대신 in을 쓰는지 확인해 볼까요?","I am **in** the sixth grade.|She is in the second grade.|He is in the fifth grade.",12

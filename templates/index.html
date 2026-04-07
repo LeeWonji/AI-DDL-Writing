@@ -3,80 +3,454 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI-DDL 글쓰기</title>
+    <title>Clue-Write</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Jua&family=Nunito:wght@600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Nunito', Arial, sans-serif; margin: 20px; background: linear-gradient(160deg, #f5ede5 0%, #ede0d4 50%, #e8d9cc 100%); min-height: 100vh; }
-        .container { max-width: 1000px; margin: auto; padding: 24px; border: 1px solid #c5d4e8; border-radius: 16px; background: rgba(255,255,255,0.85); box-shadow: 0 4px 20px rgba(0,0,0,0.06); display: flex; flex-direction: column; gap: 20px; }
+        .container { max-width: 1200px; margin: auto; padding: 24px; border: 1px solid #c5d4e8; border-radius: 16px; background: rgba(255,255,255,0.85); box-shadow: 0 4px 20px rgba(0,0,0,0.06); display: flex; flex-direction: column; gap: 20px; }
         .memo-row { display: flex; gap: 16px; align-items: stretch; margin-top: 1.5em; }
         .memo-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+        .memo-transfer-col { display: flex; align-items: center; justify-content: center; min-width: 56px; }
+        .memo-transfer-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 24px;
+            border: 1px solid #f4a55a;
+            background: linear-gradient(180deg, #f7b267 0%, #f4a55a 100%);
+            color: #fff;
+            font-size: 1.3rem;
+            font-weight: 800;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 3px 10px rgba(244,165,90,0.3);
+        }
+        .memo-transfer-btn:hover { background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%); }
         .memo-col label { margin-bottom: 8px; }
-        .memo-box { flex: 1; min-height: 200px; font-size: 1.1em; padding: 14px; border-radius: 12px; border: 1px solid #d4c4a0; background-color: #fff9c4; box-sizing: border-box; }
+        .memo-box { flex: 1; min-height: 260px; font-size: 1.1em; padding: 14px; border-radius: 12px; border: 1px solid #d4c4a0; background-color: #fff9c4; box-sizing: border-box; }
         textarea.memo-box { resize: vertical; font-family: inherit; }
         .button-row { display: flex; justify-content: center; margin: 12px 0; }
         .button-row button { margin: 0; }
         .feedback-section { width: 100%; margin-top: 24px; }
-        .feedback-split { display: flex; gap: 20px; align-items: stretch; margin-top: 12px; }
-        .feedback-left { flex: 1; min-width: 0; }
-        .feedback-right { flex: 1; min-width: 0; min-height: 180px; padding: 16px; border-radius: 12px; border: 1px solid #e0d8f0; background: linear-gradient(135deg, #faf5ff 0%, #f0f4ff 100%); }
+        .feedback-split { margin-top: 12px; }
+        .feedback-right { width: 100%; max-width: 100%; box-sizing: border-box; min-height: 180px; padding: 16px; border-radius: 12px; border: 1px solid #e0d8f0; background: linear-gradient(135deg, #faf5ff 0%, #f0f4ff 100%); display: block; overflow-x: hidden; }
         .feedback-right-empty { color: #888; font-style: italic; }
-        .feedback-sentence { margin-bottom: 12px; line-height: 1.6; }
-        .feedback-error-span { font-weight: bold; color: #e65100; background-color: rgba(230,81,0,0.15); padding: 0 2px; border-radius: 4px; cursor: pointer; }
-        .feedback-error-span:hover { background-color: rgba(230,81,0,0.25); }
-        .feedback-error-span-selected { background-color: rgba(92,107,192,0.3) !important; color: #3949ab; box-shadow: 0 0 0 2px #5c6bc0; }
-        .feedback-right .stage-question { margin-bottom: 12px; font-size: 1.05em; }
         .feedback-right .stage-example { margin: 12px 0; padding: 10px; background: #fff; border-radius: 8px; border: 1px solid #e0e0e0; }
-        .feedback-right .stage-cause { margin: 10px 0; padding: 10px; background: #fff8e1; border-radius: 8px; border-left: 4px solid #ffa000; font-size: 0.95em; color: #5d4037; }
         .example-highlight { font-weight: 800; background: linear-gradient(180deg, #e0e0e0 0%, #bdbdbd 100%); color: #000; padding: 1px 4px; border-radius: 4px; }
-        .feedback-right .stage-correction { margin: 12px 0; padding: 10px; background: #e8f5e9; border-radius: 8px; font-weight: bold; }
-        .feedback-btn { margin-top: 8px; padding: 8px 16px; border-radius: 8px; border: 1px solid #5c6bc0; background: #5c6bc0; color: white; cursor: pointer; font-size: 0.95rem; }
-        .feedback-btn:hover { background: #4a56a8; }
-        .feedback-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .page-title { font-family: 'Jua', sans-serif; font-size: 2rem; color: #2c3e6b; text-align: center; margin-bottom: 0; }
+        .step-accent { color: #e65100; font-weight: 800; }
+        .step-answer { color: #1b5e20; font-weight: 800; }
+        .key-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .key-tab { border: 1px solid #d6deef; background: #fff; border-radius: 10px; padding: 6px 10px; cursor: pointer; font-size: 1rem; }
+        .key-tab.active { border-color: #f4a55a; box-shadow: 0 0 0 2px rgba(244,165,90,0.18); }
+        .error-flow-card { border: 1px solid #d6deef; border-radius: 12px; background: #fff; padding: 12px; width: 100%; box-sizing: border-box; }
+        .error-flow-header { font-weight: 800; color: #2c3e6b; margin-bottom: 8px; }
+        .step-panel { border: 1px solid #e4ebf7; border-radius: 10px; background: #fdfefe; padding: 10px; margin: 8px 0; }
+        .step-panel.hidden { display: none; }
+        .step-panel-title { font-weight: 800; margin-bottom: 5px; color: #2f3d63; }
+        .step-panel-body { line-height: 1.6; }
+        .step-next-btn { display: inline-flex; align-items: center; justify-content: center; margin-top: 8px; min-height: 34px; padding: 6px 12px; border-radius: 17px; border: 1px solid #f4a55a; background: #f4a55a; color: #fff; cursor: pointer; font-size: 14px; font-weight: 700; }
+        .step-next-btn:hover { background: #f59e0b; }
+        .step-next-wrap { text-align: center; }
+        .page-title {
+            font-family: 'Jua', sans-serif;
+            font-size: 3rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            color: #7a4a21;
+            text-align: center;
+            margin-bottom: 0;
+            line-height: 1.1;
+            text-shadow: 0 3px 10px rgba(122, 74, 33, 0.22);
+        }
         .page-tagline { text-align: center; font-size: 0.95rem; color: #5a6b8a; margin: 0.2em 0 1em 0; }
         .section-title { font-family: 'Jua', sans-serif; font-size: 1.3rem; font-weight: normal; color: #2c3e6b; margin: 0 0 8px 0; }
         label { display: block; margin-top: 10px; font-weight: bold; }
-        button { background: linear-gradient(180deg, #5c6bc0 0%, #4a56a8 100%); color: white; padding: 12px 20px; border: none; border-radius: 12px; cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 1rem; box-shadow: 0 2px 8px rgba(92,107,192,0.3); }
-        button:hover { background: linear-gradient(180deg, #6c7bd0 0%, #5a66b8 100%); box-shadow: 0 3px 12px rgba(92,107,192,0.4); }
+        button { background: linear-gradient(180deg, #f7b267 0%, #f4a55a 100%); color: white; padding: 12px 20px; border: none; border-radius: 12px; cursor: pointer; font-family: 'Nunito', sans-serif; font-weight: 700; font-size: 1rem; box-shadow: 0 2px 8px rgba(244,165,90,0.3); }
+        button:hover { background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%); box-shadow: 0 3px 12px rgba(245,158,11,0.4); }
         button:disabled { opacity: 0.8; cursor: not-allowed; }
         .feedback-disclaimer { margin: 10px 0 0 0; font-size: 13px; color: #777; }
         .ai-generated { color: #2563eb; }
-        .top-banner { display: inline-flex; align-items: center; gap: 8px; width: fit-content; margin-bottom: 12px; padding: 8px 14px; background: linear-gradient(135deg, #5c6bc0 0%, #4a56a8 100%); color: white; text-decoration: none; font-family: 'Jua', sans-serif; font-size: 1.2rem; border-radius: 0 0 12px 0; box-shadow: 0 2px 10px rgba(92,107,192,0.35); }
-        .top-banner:hover { background: linear-gradient(135deg, #6c7bd0 0%, #5a66b8 100%); color: white; }
+        .top-banner { display: inline-flex; align-items: center; gap: 8px; width: fit-content; margin-bottom: 12px; padding: 8px 14px; background: linear-gradient(135deg, #9c6644 0%, #7f5539 100%); color: white; text-decoration: none; font-family: 'Jua', sans-serif; font-size: 1.2rem; border-radius: 0 0 12px 0; box-shadow: 0 2px 10px rgba(127,85,57,0.35); }
+        .top-banner:hover { background: linear-gradient(135deg, #b07d5a 0%, #8f6245 100%); color: white; }
         .topic-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
         .topic-row .section-title { margin: 0; }
         .topic-btn { padding: 8px 14px; font-size: 0.9rem; }
         .topic-display { min-height: 24px; margin-bottom: 8px; font-size: 0.95rem; color: #5a6b8a; }
         .topic-display:not(:empty)::before { content: '오늘의 주제: '; font-weight: 600; color: #2c3e6b; }
         .scribble-hints { margin: 12px 0 0 0; font-size: 0.9rem; color: #5a6b8a; line-height: 1.6; }
+        .selector-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; }
+        .selector-row select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #c8d0e0; background: #fff; }
+        .selector-hint { margin: 0 0 6px 0; font-size: 0.9rem; color: #5a6b8a; }
+        .mode-row { display: flex; gap: 10px; justify-content: center; margin: 2px 0 6px 0; }
+        .mode-btn { padding: 8px 14px; border-radius: 10px; border: 1px solid #c5d4e8; background: #fff; color: #2c3e6b; font-weight: 700; cursor: pointer; }
+        .mode-btn.active { background: #f4a55a; color: #fff; border-color: #f4a55a; box-shadow: 0 2px 8px rgba(244,165,90,0.35); }
+        #unitModeBtn { border-color: #f2c38b; background: #fff4e8; color: #9a4a00; }
+        #unitModeBtn:hover { background: #ffe9d1; }
+        #unitModeBtn.active { background: #f4a55a; color: #fff; border-color: #f4a55a; box-shadow: 0 2px 8px rgba(244,165,90,0.35); }
+        .mode-panel.hidden { display: none; }
+        .random-topic-row { display: flex; align-items: center; gap: 10px; margin: 0 0 6px 0; }
+        .random-topic-row.hidden { display: none; }
+        .random-topic-row .topic-display { margin-bottom: 0; flex: 1; min-height: 24px; }
+        .title-keys { margin-left: 8px; font-size: 1.1rem; vertical-align: middle; }
+        .pocket-fab {
+            position: fixed;
+            right: 20px;
+            bottom: 92px;
+            z-index: 1200;
+            width: 56px;
+            height: 56px;
+            padding: 0;
+            border-radius: 28px;
+            border: 1px solid #f4a55a;
+            background: linear-gradient(180deg, #f7b267 0%, #f4a55a 100%);
+            color: #fff;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            cursor: pointer;
+            box-shadow: 0 6px 14px rgba(244,165,90,0.35);
+        }
+        .pocket-fab:hover {
+            border-color: #f59e0b;
+            background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%);
+            color: #fff;
+            box-shadow: 0 6px 14px rgba(245,158,11,0.35);
+        }
+        .learning-fab {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            z-index: 1200;
+            width: 56px;
+            height: 56px;
+            padding: 0;
+            border-radius: 28px;
+            border: 1px solid #f4a55a;
+            background: linear-gradient(180deg, #f7b267 0%, #f4a55a 100%);
+            color: #fff;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            cursor: pointer;
+            box-shadow: 0 6px 14px rgba(244,165,90,0.35);
+        }
+        .learning-fab:hover {
+            border-color: #f59e0b;
+            background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%);
+            color: #fff;
+            box-shadow: 0 6px 14px rgba(245,158,11,0.35);
+        }
+        .pocket-panel {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1199;
+            width: 80vw;
+            height: 80vh;
+            overflow: hidden;
+            border: 1px solid #cfd8ef;
+            border-radius: 12px;
+            background: #fff;
+            box-shadow: 0 8px 22px rgba(0,0,0,0.15);
+            padding: 16px;
+        }
+        .pocket-panel.hidden { display: none; }
+        .pocket-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .pocket-title { font-weight: 800; color: #2c3e6b; }
+        .pocket-header-actions { display: flex; align-items: center; gap: 6px; }
+        .pocket-close-btn {
+            border: 1px solid #d6deef;
+            border-radius: 8px;
+            background: #fff;
+            color: #2c3e6b;
+            padding: 4px 10px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .pocket-json-btn {
+            border: 1px solid #d6deef;
+            border-radius: 8px;
+            background: #fff;
+            color: #2c3e6b;
+            padding: 4px 10px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        .pocket-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-rows: repeat(2, auto);
+            gap: 12px;
+        }
+        .pocket-item {
+            border: 1px solid #e2e8f8;
+            border-radius: 10px;
+            padding: 10px;
+            background: #fff9c4;
+            min-height: 0;
+            height: 220px;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            position: relative;
+        }
+        .pocket-item.empty {
+            background: rgba(255, 255, 255, 0.25);
+            border: 1px dashed rgba(148, 163, 184, 0.55);
+        }
+        .pocket-item.highlight-link {
+            outline: 3px solid #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+        }
+        .pocket-select-checkbox {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+        .pocket-delete-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            border: 1px solid #111827;
+            background: #ffffff;
+            color: #111827;
+            border-radius: 8px;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            font-size: 12px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        .pocket-delete-btn:hover {
+            background: #111827;
+            color: #ffffff;
+        }
+        .pocket-meta { font-size: 12px; color: #6b7280; margin-bottom: 4px; margin-top: 24px; }
+        .pocket-text { font-size: 14px; white-space: pre-wrap; line-height: 1.5; overflow-y: auto; flex: 1; margin-top: 4px; padding-top: 2px; }
+        .pocket-learning-wrap { margin-top: auto; padding-top: 10px; }
+        .pocket-learning-label { font-size: 12px; color: #2c3e6b; margin-bottom: 4px; font-weight: 700; }
+        .pocket-learning-comments {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #ffffffcc;
+            max-height: 74px;
+            overflow-y: auto;
+            padding: 6px;
+            margin-bottom: 6px;
+        }
+        .pocket-learning-empty { font-size: 12px; color: #9aa1ad; font-style: italic; }
+        .pocket-learning-comment {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 6px;
+            margin-bottom: 4px;
+        }
+        .pocket-learning-comment:last-child { margin-bottom: 0; }
+        .pocket-learning-comment-text {
+            font-size: 12px;
+            color: #111827;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-break: break-word;
+            flex: 1;
+        }
+        .pocket-comment-actions { display: inline-flex; gap: 4px; }
+        .pocket-comment-btn {
+            border: 1px solid #d1d5db;
+            background: #fff;
+            color: #374151;
+            border-radius: 6px;
+            padding: 1px 6px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        .pocket-comment-btn:hover { background: #f3f4f6; }
+        .pocket-learning-input {
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #d4c4a0;
+            border-radius: 8px;
+            padding: 8px;
+            font-size: 13px;
+            background: #fffef2;
+        }
+        .pocket-empty { color: #888; font-style: italic; }
+        .pocket-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .pocket-page-btn {
+            border: 1px solid #d6deef;
+            background: #fff;
+            color: #2c3e6b;
+            border-radius: 8px;
+            padding: 4px 10px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .pocket-page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .pocket-page-text {
+            font-size: 0.9rem;
+            color: #4b5563;
+            min-width: 84px;
+            text-align: center;
+        }
+        .pocket-footer-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 10px;
+        }
+        .save-mode-modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.35);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .save-mode-modal-overlay.hidden { display: none; }
+        .save-mode-modal {
+            width: min(420px, 92vw);
+            background: #fff;
+            border: 1px solid #d6deef;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.2);
+        }
+        .save-mode-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+        .save-mode-title { font-weight: 800; color: #2c3e6b; }
+        .save-mode-close-btn {
+            border: 1px solid #d6deef;
+            background: #fff;
+            color: #2c3e6b;
+            border-radius: 8px;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            font-size: 14px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        .save-mode-desc { font-size: 14px; color: #4b5563; margin-bottom: 12px; }
+        .save-mode-btn-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+        .save-mode-btn {
+            border: 1px solid #d6deef;
+            background: #fff;
+            color: #2c3e6b;
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .save-mode-btn.primary {
+            border-color: #f4a55a;
+            background: #f4a55a;
+            color: #fff;
+        }
+        .learning-item {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            background: #fffef7;
+            padding: 10px;
+            margin-bottom: 8px;
+            cursor: pointer;
+        }
+        .learning-item:hover { background: #fff7db; }
+        .learning-item-meta { font-size: 12px; color: #6b7280; margin-bottom: 4px; }
+        .learning-item-text { font-size: 14px; color: #111827; line-height: 1.5; white-space: pre-wrap; }
+        .page-footer {
+            margin-top: 10px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: #5a6b8a;
+        }
+        .pop-key {
+            position: fixed;
+            z-index: 9999;
+            font-size: 24px;
+            line-height: 1;
+            pointer-events: none;
+            will-change: transform, opacity, filter;
+            opacity: 0;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            animation: key-pop 750ms ease-out forwards;
+        }
+        @keyframes key-pop {
+            0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0; filter: blur(1px); }
+            20% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; filter: blur(0); }
+            60% { transform: translate(-50%, -60%) scale(1.0); opacity: 1; }
+            100% { transform: translate(-50%, -85%) scale(0.9); opacity: 0; }
+        }
     </style>
 </head>
 <body>
     <a class="top-banner" href="https://ai-ddl.onrender.com/" target="_blank" rel="noopener noreferrer">🕵️ AI-DDL</a>
     <div class="container">
-        <h1 class="page-title">🔍 AI-DDL 글쓰기</h1>
-        <p class="page-tagline">영어 단서를 찾고, 문장을 탐정처럼 고쳐보세요!</p>
+        <h1 class="page-title">🔍 Clue-Write</h1>
+        <p class="page-tagline">단서를 찾고, 글을 탐정처럼 고쳐보세요!</p>
+        <div class="mode-row">
+            <button type="button" id="freeModeBtn" class="mode-btn">자유 글쓰기</button>
+            <button type="button" id="unitModeBtn" class="mode-btn">단원 글쓰기</button>
+        </div>
+        <div id="randomTopicRow" class="random-topic-row hidden">
+            <button type="button" id="randomTopicBtn" class="topic-btn">🎲 랜덤 주제</button>
+            <div id="topic-display" class="topic-display"></div>
+        </div>
 
         <form id="feedbackForm">
+            <div id="unitModePanel" class="mode-panel hidden">
+                <p class="selector-hint">단원 글쓰기 모드: 학년, 출판사, 단원을 선택하세요.</p>
+                <div class="selector-row">
+                <select id="gradeSelect" aria-label="학년 선택" required>
+                    <option value="">학년 선택</option>
+                </select>
+                <select id="publisherSelect" aria-label="출판사 선택" required disabled>
+                    <option value="">출판사 선택</option>
+                </select>
+                <select id="unitSelect" aria-label="단원 선택" required disabled>
+                    <option value="">단원 선택</option>
+                </select>
+                </div>
+            </div>
             <div class="memo-row">
                 <div class="memo-col">
                     <div class="topic-row">
                         <label for="writing" class="section-title">✏️ 끄적끄적</label>
-                        <button type="button" id="randomTopicBtn" class="topic-btn">🎲 랜덤 주제</button>
                     </div>
-                    <p class="scribble-hints">
-                        📖 교과서 대화문을 참고해서 글을 써보아요.<br>
-                        🎲 랜덤 주제 버튼을 눌러서 글을 쓸 수도 있어요.
-                    </p>
-                    <div id="topic-display" class="topic-display"></div>
                     <textarea id="writing" class="memo-box" placeholder="여기에 글을 써 보세요!" required></textarea>
+                </div>
+                <div class="memo-transfer-col">
+                    <button type="button" id="moveRewriteToWritingBtn" class="memo-transfer-btn" aria-label="고쳐쓰기를 끄적끄적으로 이동" title="고쳐 쓴 글을 끄적끄적으로 이동해서 다시 확인해요.">←</button>
                 </div>
                 <div class="memo-col">
                     <div class="topic-row">
                         <label for="rewrite" class="section-title">✒️ 고쳐쓰기</label>
-                        <button type="button" id="saveRewriteTxtBtn" class="topic-btn">📄 txt로 저장</button>
+                        <div style="display:flex; gap:8px;">
+                            <button type="button" id="addToPocketBtn" class="topic-btn">📚 글 주머니에 추가</button>
+                        </div>
                     </div>
                     <textarea id="rewrite" class="memo-box" placeholder="피드백을 보고 여기에 고쳐 쓰세요!" aria-label="고쳐쓰기"></textarea>
                 </div>
@@ -87,14 +461,13 @@
             </div>
 
             <div class="feedback-section">
-                <h2 class="section-title">👩‍🏫 AI 피드백</h2>
+                <h2 class="section-title" id="feedbackSectionTitle">👩‍🏫 AI 피드백</h2>
                 <p style="margin: 0 0 8px 0; font-size: 14px; color: #555;">
-                    오류 부분(주황색)을 클릭하면 단계별로 힌트를 볼 수 있어요.
+                    단서를 순서대로 확인하세요.
                 </p>
                 <div class="feedback-split">
-                    <div class="feedback-left" id="feedback-left-output"></div>
                     <div class="feedback-right" id="feedback-right-output">
-                        <span class="feedback-right-empty">오류 부분을 클릭해 보세요.</span>
+                        <span class="feedback-right-empty">단서 확인하기를 누르면 더 나은 글을 위한 단서가 생성됩니다.</span>
                     </div>
                 </div>
                 <p class="feedback-disclaimer">⚠️ AI도 가끔 실수를 한답니다.</p>
@@ -102,8 +475,159 @@
             </div>
         </form>
     </div>
+    <footer class="page-footer">© 2026 Clue-Writing | 만든이: 이원지 | 문의: wjlee286@g.jbedu.kr</footer>
+    <button type="button" id="pocketFabBtn" class="pocket-fab" aria-label="글 주머니 열기">📚</button>
+    <button type="button" id="learningFabBtn" class="learning-fab" aria-label="배움 주머니 열기">💡</button>
+    <div id="pocketPanel" class="pocket-panel hidden">
+        <div class="pocket-header">
+            <div class="pocket-title">📚 글 주머니</div>
+            <div class="pocket-header-actions">
+                <input type="file" id="pocketJsonFileInput" accept=".json,application/json" style="display:none;">
+                <button type="button" id="pocketExportBtn" class="pocket-json-btn">내 컴퓨터에 저장</button>
+                <button type="button" id="pocketImportBtn" class="pocket-json-btn">불러오기</button>
+                <button type="button" id="pocketCloseBtn" class="pocket-close-btn">닫기 ✕</button>
+            </div>
+        </div>
+        <div id="pocketList"></div>
+        <div class="pocket-footer-actions">
+            <button type="button" id="pocketSaveTxtBtn" class="pocket-json-btn">📄 txt로 저장</button>
+        </div>
+    </div>
+    <div id="learningPanel" class="pocket-panel hidden">
+        <div class="pocket-header">
+            <div class="pocket-title">💡 배움 주머니</div>
+            <button type="button" id="learningCloseBtn" class="pocket-close-btn">닫기 ✕</button>
+        </div>
+        <div id="learningList"></div>
+    </div>
+    <div id="saveModeModalOverlay" class="save-mode-modal-overlay hidden">
+        <div class="save-mode-modal">
+            <div class="save-mode-header">
+                <div class="save-mode-title">저장 방식을 선택해 주세요</div>
+                <button type="button" id="saveModeCloseBtn" class="save-mode-close-btn" aria-label="닫기">✕</button>
+            </div>
+            <div class="save-mode-desc">여러 글을 선택했어요. 저장 방법을 선택해 주세요.</div>
+            <div class="save-mode-btn-row">
+                <button type="button" id="saveModeSeparateBtn" class="save-mode-btn">각각의 파일로 저장</button>
+                <button type="button" id="saveModeSingleBtn" class="save-mode-btn primary">하나의 파일로 저장</button>
+            </div>
+        </div>
+    </div>
 
     <script>
+        var WRITING_POCKET_STORAGE_KEY = 'ai_ddl_writing_pocket';
+        var currentWritingMode = 'free';
+        var currentPocketPage = 1;
+        var POCKET_PAGE_SIZE = 4;
+        var currentLearningPage = 1;
+        var LEARNING_PAGE_SIZE = 10;
+        var pendingHighlightPocketIndex = -1;
+        var selectedPocketItemIndexMap = {};
+
+        function renderOptions(selectEl, defaultLabel, values) {
+            var html = '<option value="">' + defaultLabel + '</option>';
+            for (var i = 0; i < values.length; i++) {
+                var value = values[i];
+                html += '<option value="' + escapeAttr(value) + '">' + escapeHtml(value) + '</option>';
+            }
+            selectEl.innerHTML = html;
+        }
+
+        async function loadGradeOptions() {
+            var gradeSelect = document.getElementById('gradeSelect');
+            try {
+                var res = await fetch('/api/options/grades');
+                var data = await res.json();
+                var grades = (res.ok && data.grades) ? data.grades : [];
+                renderOptions(gradeSelect, '학년 선택', grades);
+            } catch (e) {
+                renderOptions(gradeSelect, '학년 선택', []);
+            }
+        }
+
+        async function loadPublisherOptions(grade) {
+            var publisherSelect = document.getElementById('publisherSelect');
+            var unitSelect = document.getElementById('unitSelect');
+            publisherSelect.disabled = true;
+            unitSelect.disabled = true;
+            renderOptions(publisherSelect, '출판사 선택', []);
+            renderOptions(unitSelect, '단원 선택', []);
+            if (!grade) return;
+            try {
+                var res = await fetch('/api/options/publishers?grade=' + encodeURIComponent(grade));
+                var data = await res.json();
+                var publishers = (res.ok && data.publishers) ? data.publishers : [];
+                renderOptions(publisherSelect, '출판사 선택', publishers);
+                publisherSelect.disabled = false;
+            } catch (e) {
+                renderOptions(publisherSelect, '출판사 선택', []);
+            }
+        }
+
+        async function loadUnitOptions(grade, publisher) {
+            var unitSelect = document.getElementById('unitSelect');
+            unitSelect.disabled = true;
+            renderOptions(unitSelect, '단원 선택', []);
+            if (!grade || !publisher) return;
+            try {
+                var res = await fetch('/api/options/units?grade=' + encodeURIComponent(grade) + '&publisher=' + encodeURIComponent(publisher));
+                var data = await res.json();
+                var units = (res.ok && data.units) ? data.units : [];
+                renderOptions(unitSelect, '단원 선택', units);
+                unitSelect.disabled = false;
+            } catch (e) {
+                renderOptions(unitSelect, '단원 선택', []);
+            }
+        }
+
+        document.getElementById('gradeSelect').addEventListener('change', async function () {
+            await loadPublisherOptions(this.value);
+        });
+
+        document.getElementById('publisherSelect').addEventListener('change', async function () {
+            var grade = document.getElementById('gradeSelect').value;
+            await loadUnitOptions(grade, this.value);
+        });
+
+        function setWritingMode(mode) {
+            currentWritingMode = mode === 'unit' ? 'unit' : 'free';
+            var freeBtn = document.getElementById('freeModeBtn');
+            var unitBtn = document.getElementById('unitModeBtn');
+            var unitPanel = document.getElementById('unitModePanel');
+            var randomTopicBtn = document.getElementById('randomTopicBtn');
+            var randomTopicRow = document.getElementById('randomTopicRow');
+            var gradeSelect = document.getElementById('gradeSelect');
+            var publisherSelect = document.getElementById('publisherSelect');
+            var unitSelect = document.getElementById('unitSelect');
+
+            if (currentWritingMode === 'free') {
+                freeBtn.classList.add('active');
+                unitBtn.classList.remove('active');
+                unitPanel.classList.add('hidden');
+                randomTopicRow.classList.remove('hidden');
+                randomTopicBtn.disabled = false;
+                gradeSelect.disabled = true;
+                publisherSelect.disabled = true;
+                unitSelect.disabled = true;
+            } else {
+                freeBtn.classList.remove('active');
+                unitBtn.classList.add('active');
+                unitPanel.classList.remove('hidden');
+                randomTopicRow.classList.add('hidden');
+                randomTopicBtn.disabled = true;
+                gradeSelect.disabled = false;
+                publisherSelect.disabled = !gradeSelect.value;
+                unitSelect.disabled = !gradeSelect.value || !publisherSelect.value;
+            }
+        }
+
+        document.getElementById('freeModeBtn').addEventListener('click', function () {
+            setWritingMode('free');
+        });
+        document.getElementById('unitModeBtn').addEventListener('click', function () {
+            setWritingMode('unit');
+        });
+
         document.getElementById('randomTopicBtn').addEventListener('click', async function () {
             var btn = this;
             var display = document.getElementById('topic-display');
@@ -125,17 +649,543 @@
             btn.textContent = '🎲 랜덤 주제';
         });
 
-        document.getElementById('saveRewriteTxtBtn').addEventListener('click', function () {
-            var text = document.getElementById('rewrite').value;
-            var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        document.getElementById('moveRewriteToWritingBtn').addEventListener('click', function () {
+            var writingEl = document.getElementById('writing');
+            var rewriteEl = document.getElementById('rewrite');
+            var rewriteText = (rewriteEl.value || '').trim();
+            if (!rewriteText) {
+                alert('고쳐쓰기에 옮길 내용이 없어요.');
+                return;
+            }
+            writingEl.value = rewriteText;
+            rewriteEl.value = '';
+            writingEl.focus();
+        });
+
+        function getWritingPocketItems() {
+            try {
+                var raw = localStorage.getItem(WRITING_POCKET_STORAGE_KEY);
+                if (!raw) return [];
+                var parsed = JSON.parse(raw);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveWritingPocketItems(items) {
+            try {
+                localStorage.setItem(WRITING_POCKET_STORAGE_KEY, JSON.stringify(items));
+            } catch (e) {}
+        }
+
+        function normalizePocketItems(items) {
+            var changed = false;
+            var normalized = (items || []).map(function (item) {
+                var out = item || {};
+                if (!Array.isArray(out.learning_comments)) {
+                    out.learning_comments = [];
+                    changed = true;
+                }
+                // 이전 버전 단일 메모(learning_note)를 댓글 배열로 마이그레이션
+                var legacy = (out.learning_note || '').trim();
+                if (legacy && out.learning_comments.length === 0) {
+                    out.learning_comments = [legacy];
+                    out.learning_note = '';
+                    changed = true;
+                } else if (legacy) {
+                    // 이미 댓글 배열이 있으면 legacy 필드는 제거
+                    out.learning_note = '';
+                    changed = true;
+                }
+                return out;
+            });
+            if (changed) {
+                saveWritingPocketItems(normalized);
+            }
+            return normalized;
+        }
+
+        function buildPocketItem(rewriteText, savedAt) {
+            return {
+                text: rewriteText,
+                saved_at: savedAt,
+                learning_comments: []
+            };
+        }
+
+        function addPocketEntry(rewriteText, savedAt) {
+            var items = getWritingPocketItems();
+            items.push(buildPocketItem(rewriteText, savedAt));
+            if (items.length > 50) {
+                items = items.slice(items.length - 50);
+            }
+            saveWritingPocketItems(items);
+            currentPocketPage = Math.max(1, Math.ceil(items.length / POCKET_PAGE_SIZE));
+        }
+
+        function getPocketDisplayItems() {
+            var items = normalizePocketItems(getWritingPocketItems());
+            var start = (currentPocketPage - 1) * POCKET_PAGE_SIZE;
+            var end = start + POCKET_PAGE_SIZE;
+            return items.slice(start, end);
+        }
+
+        function renderWritingPocket() {
+            var listEl = document.getElementById('pocketList');
+            var items = getPocketDisplayItems();
+            var allItems = normalizePocketItems(getWritingPocketItems());
+            var totalPages = Math.max(1, Math.ceil(allItems.length / POCKET_PAGE_SIZE));
+            if (currentPocketPage > totalPages) {
+                currentPocketPage = totalPages;
+                items = getPocketDisplayItems();
+            }
+            var html = '<div class="pocket-grid">';
+            var displayCount = POCKET_PAGE_SIZE;
+            for (var i = 0; i < displayCount; i++) {
+                var item = items[i] || {};
+                if (item && item.text) {
+                    var savedAt = item.saved_at || '';
+                    var text = item.text || '';
+                    var comments = Array.isArray(item.learning_comments) ? item.learning_comments : [];
+                    var realIndex = (currentPocketPage - 1) * POCKET_PAGE_SIZE + i;
+                    html += '<div class="pocket-item" data-pocket-real-index="' + realIndex + '">';
+                    html += '<input type="checkbox" class="pocket-select-checkbox" data-pocket-index="' + i + '" ' + (selectedPocketItemIndexMap[realIndex] ? 'checked' : '') + '>';
+                    html += '<button type="button" class="pocket-delete-btn" data-pocket-index="' + i + '" aria-label="글 삭제" title="글 삭제">🗑️</button>';
+                    html += '<div class="pocket-meta">' + escapeHtml(savedAt) + '</div>';
+                    html += '<div class="pocket-text">' + escapeHtml(text) + '</div>';
+                    html += '<div class="pocket-learning-wrap">';
+                    html += '<div class="pocket-learning-label">배움 한 줄</div>';
+                    html += '<div class="pocket-learning-comments">';
+                    if (comments.length) {
+                        for (var ci = 0; ci < comments.length; ci++) {
+                            var cmt = comments[ci];
+                            html += '<div class="pocket-learning-comment">';
+                            html += '<div class="pocket-learning-comment-text">' + escapeHtml(cmt) + '</div>';
+                            html += '<div class="pocket-comment-actions">';
+                            html += '<button type="button" class="pocket-comment-btn pocket-comment-edit-btn" data-pocket-index="' + i + '" data-comment-index="' + ci + '">수정</button>';
+                            html += '<button type="button" class="pocket-comment-btn pocket-comment-delete-btn" data-pocket-index="' + i + '" data-comment-index="' + ci + '">삭제</button>';
+                            html += '</div>';
+                            html += '</div>';
+                        }
+                    }
+                    html += '</div>';
+                    html += '<input type="text" class="pocket-learning-input" data-pocket-index="' + i + '" placeholder="오늘 배운 점을 한 줄로 적고 Enter를 누르세요.">';
+                    html += '</div>';
+                    html += '</div>';
+                } else {
+                    html += '<div class="pocket-item empty"></div>';
+                }
+            }
+            html += '</div>';
+            if (!allItems.length) {
+                html += '<div class="pocket-empty" style="margin-top:10px;">저장된 글이 없습니다.</div>';
+            }
+            if (allItems.length > POCKET_PAGE_SIZE) {
+                html += '<div class="pocket-pagination">';
+                html += '<button type="button" class="pocket-page-btn" id="pocketPrevBtn" ' + (currentPocketPage <= 1 ? 'disabled' : '') + '>◀ 이전</button>';
+                html += '<div class="pocket-page-text">' + currentPocketPage + ' / ' + totalPages + ' 쪽</div>';
+                html += '<button type="button" class="pocket-page-btn" id="pocketNextBtn" ' + (currentPocketPage >= totalPages ? 'disabled' : '') + '>다음 ▶</button>';
+                html += '</div>';
+            }
+            listEl.innerHTML = html;
+            bindPocketSelectionCheckboxes();
+            bindLearningInputs();
+            bindLearningCommentActionButtons();
+            bindPocketDeleteButtons();
+            bindPocketPaginationButtons();
+            if (pendingHighlightPocketIndex >= 0) {
+                var target = listEl.querySelector('.pocket-item[data-pocket-real-index="' + pendingHighlightPocketIndex + '"]');
+                if (target) {
+                    target.classList.add('highlight-link');
+                    setTimeout(function () {
+                        target.classList.remove('highlight-link');
+                    }, 1700);
+                }
+                pendingHighlightPocketIndex = -1;
+            }
+        }
+
+        function bindLearningInputs() {
+            var inputs = document.querySelectorAll('.pocket-learning-input');
+            inputs.forEach(function (inputEl) {
+                inputEl.addEventListener('keydown', function (event) {
+                    if (event.key !== 'Enter') return;
+                    event.preventDefault();
+                    var content = (inputEl.value || '').trim();
+                    if (!content) return;
+                    var idx = parseInt(inputEl.getAttribute('data-pocket-index'), 10);
+                    if (isNaN(idx)) return;
+                    var items = normalizePocketItems(getWritingPocketItems());
+                    var realIndex = (currentPocketPage - 1) * POCKET_PAGE_SIZE + idx;
+                    if (!items[realIndex]) return;
+                    if (!Array.isArray(items[realIndex].learning_comments)) {
+                        items[realIndex].learning_comments = [];
+                    }
+                    items[realIndex].learning_comments.push(content);
+                    saveWritingPocketItems(items);
+                    inputEl.value = '';
+                    renderWritingPocket();
+                    inputEl.blur();
+                });
+            });
+        }
+
+        function bindLearningCommentActionButtons() {
+            var editButtons = document.querySelectorAll('.pocket-comment-edit-btn');
+            editButtons.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var idx = parseInt(btn.getAttribute('data-pocket-index'), 10);
+                    var commentIdx = parseInt(btn.getAttribute('data-comment-index'), 10);
+                    if (isNaN(idx) || isNaN(commentIdx)) return;
+                    var items = normalizePocketItems(getWritingPocketItems());
+                    var realIndex = (currentPocketPage - 1) * POCKET_PAGE_SIZE + idx;
+                    var target = items[realIndex];
+                    if (!target || !Array.isArray(target.learning_comments) || target.learning_comments[commentIdx] == null) return;
+                    var currentText = target.learning_comments[commentIdx];
+                    var edited = prompt('배움 한 줄을 수정해 주세요.', currentText);
+                    if (edited === null) return;
+                    var trimmed = edited.trim();
+                    if (!trimmed) return;
+                    target.learning_comments[commentIdx] = trimmed;
+                    saveWritingPocketItems(items);
+                    renderWritingPocket();
+                });
+            });
+
+            var deleteButtons = document.querySelectorAll('.pocket-comment-delete-btn');
+            deleteButtons.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var idx = parseInt(btn.getAttribute('data-pocket-index'), 10);
+                    var commentIdx = parseInt(btn.getAttribute('data-comment-index'), 10);
+                    if (isNaN(idx) || isNaN(commentIdx)) return;
+                    if (!confirm('이 배움 한 줄을 삭제할까요?')) return;
+                    var items = normalizePocketItems(getWritingPocketItems());
+                    var realIndex = (currentPocketPage - 1) * POCKET_PAGE_SIZE + idx;
+                    var target = items[realIndex];
+                    if (!target || !Array.isArray(target.learning_comments) || target.learning_comments[commentIdx] == null) return;
+                    target.learning_comments.splice(commentIdx, 1);
+                    saveWritingPocketItems(items);
+                    renderWritingPocket();
+                });
+            });
+        }
+
+        function bindPocketSelectionCheckboxes() {
+            var checks = document.querySelectorAll('.pocket-select-checkbox');
+            checks.forEach(function (checkEl) {
+                checkEl.addEventListener('change', function () {
+                    var idx = parseInt(checkEl.getAttribute('data-pocket-index'), 10);
+                    if (isNaN(idx)) return;
+                    var realIndex = (currentPocketPage - 1) * POCKET_PAGE_SIZE + idx;
+                    selectedPocketItemIndexMap[realIndex] = !!checkEl.checked;
+                });
+            });
+        }
+
+        function bindPocketDeleteButtons() {
+            var buttons = document.querySelectorAll('.pocket-delete-btn');
+            buttons.forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var idx = parseInt(btn.getAttribute('data-pocket-index'), 10);
+                    if (isNaN(idx)) return;
+                    if (!confirm('글을 삭제하시겠습니까?')) return;
+                    var items = normalizePocketItems(getWritingPocketItems());
+                    var realIndex = (currentPocketPage - 1) * POCKET_PAGE_SIZE + idx;
+                    if (!items[realIndex]) return;
+                    items.splice(realIndex, 1);
+                    saveWritingPocketItems(items);
+                    var updatedSelection = {};
+                    Object.keys(selectedPocketItemIndexMap).forEach(function (k) {
+                        var oldIdx = parseInt(k, 10);
+                        if (isNaN(oldIdx) || oldIdx === realIndex) return;
+                        var newIdx = oldIdx > realIndex ? oldIdx - 1 : oldIdx;
+                        updatedSelection[newIdx] = !!selectedPocketItemIndexMap[k];
+                    });
+                    selectedPocketItemIndexMap = updatedSelection;
+                    renderWritingPocket();
+                });
+            });
+        }
+
+        function bindPocketPaginationButtons() {
+            var prevBtn = document.getElementById('pocketPrevBtn');
+            var nextBtn = document.getElementById('pocketNextBtn');
+            if (prevBtn) {
+                prevBtn.addEventListener('click', function () {
+                    if (currentPocketPage <= 1) return;
+                    currentPocketPage -= 1;
+                    renderWritingPocket();
+                });
+            }
+            if (nextBtn) {
+                nextBtn.addEventListener('click', function () {
+                    var totalPages = Math.max(1, Math.ceil(getWritingPocketItems().length / POCKET_PAGE_SIZE));
+                    if (currentPocketPage >= totalPages) return;
+                    currentPocketPage += 1;
+                    renderWritingPocket();
+                });
+            }
+        }
+
+        function collectLearningEntries() {
+            var items = normalizePocketItems(getWritingPocketItems());
+            var entries = [];
+            for (var i = 0; i < items.length; i++) {
+                var item = items[i] || {};
+                var comments = Array.isArray(item.learning_comments) ? item.learning_comments : [];
+                for (var j = 0; j < comments.length; j++) {
+                    entries.push({
+                        text: comments[j],
+                        pocket_item_index: i,
+                        saved_at: item.saved_at || ''
+                    });
+                }
+            }
+            return entries;
+        }
+
+        function getLearningDisplayItems() {
+            var entries = collectLearningEntries();
+            var start = (currentLearningPage - 1) * LEARNING_PAGE_SIZE;
+            var end = start + LEARNING_PAGE_SIZE;
+            return entries.slice(start, end);
+        }
+
+        function renderLearningPocket() {
+            var listEl = document.getElementById('learningList');
+            var pageItems = getLearningDisplayItems();
+            var allEntries = collectLearningEntries();
+            var totalPages = Math.max(1, Math.ceil(allEntries.length / LEARNING_PAGE_SIZE));
+            if (currentLearningPage > totalPages) {
+                currentLearningPage = totalPages;
+                pageItems = getLearningDisplayItems();
+            }
+
+            var html = '';
+            if (!allEntries.length) {
+                html += '<div class="pocket-empty">저장된 배움 한 줄이 없습니다.</div>';
+            } else {
+                for (var i = 0; i < pageItems.length; i++) {
+                    var entry = pageItems[i];
+                    var displayIndex = (currentLearningPage - 1) * LEARNING_PAGE_SIZE + i + 1;
+                    html += '<div class="learning-item" data-pocket-index="' + entry.pocket_item_index + '">';
+                    html += '<div class="learning-item-meta">#' + displayIndex + ' · ' + escapeHtml(entry.saved_at) + '</div>';
+                    html += '<div class="learning-item-text">' + escapeHtml(entry.text) + '</div>';
+                    html += '</div>';
+                }
+            }
+
+            if (allEntries.length > LEARNING_PAGE_SIZE) {
+                html += '<div class="pocket-pagination">';
+                html += '<button type="button" class="pocket-page-btn" id="learningPrevBtn" ' + (currentLearningPage <= 1 ? 'disabled' : '') + '>◀ 이전</button>';
+                html += '<div class="pocket-page-text">' + currentLearningPage + ' / ' + totalPages + ' 쪽</div>';
+                html += '<button type="button" class="pocket-page-btn" id="learningNextBtn" ' + (currentLearningPage >= totalPages ? 'disabled' : '') + '>다음 ▶</button>';
+                html += '</div>';
+            }
+            listEl.innerHTML = html;
+            bindLearningPocketItemLinks();
+            bindLearningPaginationButtons();
+        }
+
+        function bindLearningPocketItemLinks() {
+            var items = document.querySelectorAll('.learning-item');
+            items.forEach(function (itemEl) {
+                itemEl.addEventListener('click', function () {
+                    var pocketIndex = parseInt(itemEl.getAttribute('data-pocket-index'), 10);
+                    if (isNaN(pocketIndex)) return;
+                    currentPocketPage = Math.floor(pocketIndex / POCKET_PAGE_SIZE) + 1;
+                    pendingHighlightPocketIndex = pocketIndex;
+                    document.getElementById('learningPanel').classList.add('hidden');
+                    renderWritingPocket();
+                    document.getElementById('pocketPanel').classList.remove('hidden');
+                });
+            });
+        }
+
+        function bindLearningPaginationButtons() {
+            var prevBtn = document.getElementById('learningPrevBtn');
+            var nextBtn = document.getElementById('learningNextBtn');
+            if (prevBtn) {
+                prevBtn.addEventListener('click', function () {
+                    if (currentLearningPage <= 1) return;
+                    currentLearningPage -= 1;
+                    renderLearningPocket();
+                });
+            }
+            if (nextBtn) {
+                nextBtn.addEventListener('click', function () {
+                    var totalPages = Math.max(1, Math.ceil(collectLearningEntries().length / LEARNING_PAGE_SIZE));
+                    if (currentLearningPage >= totalPages) return;
+                    currentLearningPage += 1;
+                    renderLearningPocket();
+                });
+            }
+        }
+
+        function askSaveModeWithButtons() {
+            return new Promise(function (resolve) {
+                var overlay = document.getElementById('saveModeModalOverlay');
+                var singleBtn = document.getElementById('saveModeSingleBtn');
+                var separateBtn = document.getElementById('saveModeSeparateBtn');
+                var closeBtn = document.getElementById('saveModeCloseBtn');
+
+                function cleanup(result) {
+                    overlay.classList.add('hidden');
+                    singleBtn.removeEventListener('click', onSingle);
+                    separateBtn.removeEventListener('click', onSeparate);
+                    closeBtn.removeEventListener('click', onClose);
+                    overlay.removeEventListener('click', onOverlayClick);
+                    resolve(result);
+                }
+                function onSingle() { cleanup('single'); }
+                function onSeparate() { cleanup('separate'); }
+                function onClose() { cleanup(null); }
+                function onOverlayClick(e) {
+                    if (e.target === overlay) cleanup(null);
+                }
+
+                singleBtn.addEventListener('click', onSingle);
+                separateBtn.addEventListener('click', onSeparate);
+                closeBtn.addEventListener('click', onClose);
+                overlay.addEventListener('click', onOverlayClick);
+                overlay.classList.remove('hidden');
+            });
+        }
+
+        document.getElementById('addToPocketBtn').addEventListener('click', function () {
+            var rewriteText = (document.getElementById('rewrite').value || '').trim();
+            if (!rewriteText) {
+                alert('고쳐쓰기 내용이 비어 있어요. 먼저 글을 작성해 주세요.');
+                return;
+            }
+            var now = new Date();
+            var savedAt = now.getFullYear() + '-' +
+                String(now.getMonth() + 1).padStart(2, '0') + '-' +
+                String(now.getDate()).padStart(2, '0') + ' ' +
+                String(now.getHours()).padStart(2, '0') + ':' +
+                String(now.getMinutes()).padStart(2, '0');
+            addPocketEntry(rewriteText, savedAt);
+            renderWritingPocket();
+            alert('글 주머니에 저장했어요!');
+        });
+        document.getElementById('pocketSaveTxtBtn').addEventListener('click', async function () {
+            var items = normalizePocketItems(getWritingPocketItems());
+            var selectedIndexes = Object.keys(selectedPocketItemIndexMap)
+                .map(function (k) { return parseInt(k, 10); })
+                .filter(function (idx) { return !isNaN(idx) && selectedPocketItemIndexMap[idx] && items[idx] && items[idx].text; })
+                .sort(function (a, b) { return a - b; });
+            if (!selectedIndexes.length) {
+                alert('저장할 글을 먼저 체크해 주세요.');
+                return;
+            }
+
+            function downloadTextFile(filename, content) {
+                var blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            if (selectedIndexes.length === 1) {
+                var oneText = items[selectedIndexes[0]].text || '';
+                downloadTextFile('글주머니_' + new Date().toISOString().slice(0, 10) + '.txt', oneText);
+                return;
+            }
+
+            var mode = await askSaveModeWithButtons();
+            if (!mode) return;
+            if (mode === 'single') {
+                var combined = selectedIndexes
+                    .map(function (idx) { return (items[idx].text || '').trim(); })
+                    .filter(function (t) { return !!t; })
+                    .join('\n\n');
+                downloadTextFile('글주머니_묶음_' + new Date().toISOString().slice(0, 10) + '.txt', combined);
+            } else if (mode === 'separate') {
+                for (var i = 0; i < selectedIndexes.length; i++) {
+                    var idx = selectedIndexes[i];
+                    var content = items[idx].text || '';
+                    downloadTextFile('글주머니_' + (i + 1) + '_' + new Date().toISOString().slice(0, 10) + '.txt', content);
+                }
+            }
+        });
+
+        document.getElementById('pocketFabBtn').addEventListener('click', function () {
+            var panel = document.getElementById('pocketPanel');
+            var isHidden = panel.classList.contains('hidden');
+            if (isHidden) {
+                renderWritingPocket();
+                document.getElementById('learningPanel').classList.add('hidden');
+                panel.classList.remove('hidden');
+            } else {
+                panel.classList.add('hidden');
+            }
+        });
+        document.getElementById('pocketCloseBtn').addEventListener('click', function () {
+            document.getElementById('pocketPanel').classList.add('hidden');
+        });
+        document.getElementById('pocketExportBtn').addEventListener('click', function () {
+            var data = {
+                version: 1,
+                exported_at: new Date().toISOString(),
+                items: normalizePocketItems(getWritingPocketItems())
+            };
+            var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json;charset=utf-8' });
             var url = URL.createObjectURL(blob);
             var a = document.createElement('a');
             a.href = url;
-            a.download = '고쳐쓰기_' + new Date().toISOString().slice(0, 10) + '.txt';
+            a.download = 'ai-ddl-writing-pocket-' + new Date().toISOString().slice(0, 10) + '.json';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+        });
+        document.getElementById('pocketImportBtn').addEventListener('click', function () {
+            document.getElementById('pocketJsonFileInput').click();
+        });
+        document.getElementById('pocketJsonFileInput').addEventListener('change', function (event) {
+            var file = event.target.files && event.target.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function () {
+                try {
+                    var parsed = JSON.parse(reader.result || '{}');
+                    var items = Array.isArray(parsed) ? parsed : parsed.items;
+                    if (!Array.isArray(items)) {
+                        alert('올바른 JSON 형식이 아닙니다.');
+                        return;
+                    }
+                    var normalized = normalizePocketItems(items);
+                    saveWritingPocketItems(normalized);
+                    currentPocketPage = Math.max(1, Math.ceil(normalized.length / POCKET_PAGE_SIZE));
+                    renderWritingPocket();
+                    alert('JSON에서 글 주머니 데이터를 불러왔어요.');
+                } catch (e) {
+                    alert('JSON 파일을 읽는 중 오류가 발생했습니다.');
+                } finally {
+                    event.target.value = '';
+                }
+            };
+            reader.readAsText(file, 'utf-8');
+        });
+        document.getElementById('learningFabBtn').addEventListener('click', function () {
+            var panel = document.getElementById('learningPanel');
+            var isHidden = panel.classList.contains('hidden');
+            if (isHidden) {
+                renderLearningPocket();
+                document.getElementById('pocketPanel').classList.add('hidden');
+                panel.classList.remove('hidden');
+            } else {
+                panel.classList.add('hidden');
+            }
+        });
+        document.getElementById('learningCloseBtn').addEventListener('click', function () {
+            document.getElementById('learningPanel').classList.add('hidden');
         });
 
         function escapeHtml(text) {
@@ -170,102 +1220,194 @@
             return result;
         }
 
-        function buildLeftHtml(originalText, errorList) {
-            if (!originalText) return '';
-            if (!errorList || errorList.length === 0) return escapeHtml(originalText).replace(/\n/g, '<br>');
-
-            var text = originalText;
-            if (typeof text.normalize === 'function') text = text.normalize('NFC');
-
-            var errorsByPos = [];
+        function renderErrorFlowSteps(errorList) {
+            if (!errorList || errorList.length === 0) {
+                return '<span class="feedback-right-empty">오류가 없어 피드백 단계가 표시되지 않습니다.</span>';
+            }
+            var keyColors = ['#f59e0b', '#3b82f6', '#22c55e', '#ef4444', '#8b5cf6', '#14b8a6', '#f97316', '#ec4899'];
+            var tabs = '<div class="key-tabs">';
             for (var i = 0; i < errorList.length; i++) {
-                var err = errorList[i];
-                var span = (err.error_span || '').trim();
-                if (!span) continue;
-                if (typeof span.normalize === 'function') span = span.normalize('NFC');
-                var idx = text.indexOf(span);
-                if (idx !== -1) {
-                    errorsByPos.push({ start: idx, end: idx + span.length, err: err, span: span });
-                }
+                var keyColor = keyColors[i % keyColors.length];
+                tabs += '<button type="button" class="key-tab' + (i === 0 ? ' active' : '') + '" data-error-index="' + i + '" title="오류 ' + (i + 1) + '">';
+                tabs += '<span style="color:' + keyColor + ';">🔑</span>';
+                tabs += '</button>';
             }
-            errorsByPos.sort(function (a, b) { return a.start - b.start; });
+            tabs += '</div>';
 
-            var html = '';
-            var lastEnd = 0;
-            for (var j = 0; j < errorsByPos.length; j++) {
-                var e = errorsByPos[j];
-                html += escapeHtml(text.slice(lastEnd, e.start)).replace(/\n/g, '<br>');
-                html += '<span class="feedback-error-span" data-error-id="' + escapeAttr(String(e.err.id)) + '">';
-                html += escapeHtml(e.span);
-                html += '</span>';
-                lastEnd = e.end;
-            }
-            html += escapeHtml(text.slice(lastEnd)).replace(/\n/g, '<br>');
+            var html = tabs;
+            html += '<div id="single-error-flow-container"></div>';
             return html;
         }
 
-        function splitIntoSentences(text) {
-            if (!text || !text.trim()) return [];
-            var parts = text.trim().split(/([.!?])\s+/);
-            var sentences = [];
-            for (var i = 0; i < parts.length; i += 2) {
-                var s = (parts[i] || '') + (parts[i + 1] || '');
-                if (s.trim()) sentences.push(s.trim());
-            }
-            return sentences;
-        }
-
-        function findSpanInText(text, span) {
-            if (!text || !span) return null;
-            var idx = text.indexOf(span);
-            if (idx !== -1) return { index: idx, span: span, length: span.length };
-            if (typeof text.normalize === 'function' && typeof span.normalize === 'function') {
-                var nText = text.normalize('NFC');
-                var nSpan = span.normalize('NFC');
-                idx = nText.indexOf(nSpan);
-                if (idx !== -1) {
-                    var displaySpan = text.slice(idx, idx + nSpan.length);
-                    return { index: idx, span: displaySpan, length: displaySpan.length };
+        function renderSingleErrorCard(err) {
+            var question = err.question || '이 부분을 다시 확인해 보세요.';
+            var questionHtml = (err.question_source === 'ai')
+                ? '<span class="ai-generated">' + escapeHtml(question) + '</span>'
+                : escapeHtml(question);
+            var sentence = (err.sentence || '').trim() || '원문에서 해당 오류가 포함된 문장을 확인해 보세요.';
+            var span = (err.error_span || '').trim() || '(오류 부분 없음)';
+            var correction = (err.correction !== undefined && err.correction !== null) ? String(err.correction).trim() : '';
+            var examples = err.example_sentences || [];
+            var exampleParts = [];
+            for (var j = 0; j < examples.length; j++) {
+                var exItem = examples[j] || {};
+                var exText = exItem.text || '';
+                if (!exText) continue;
+                var formatted = formatExampleWithBold(exText);
+                if (exItem.source === 'ai') {
+                    formatted = '<span class="ai-generated">' + formatted + '</span>';
                 }
+                exampleParts.push(formatted);
             }
-            return null;
+            var exampleHtml = exampleParts.length ? exampleParts.join('<br>') : '예문 없음';
+
+            var html = '';
+            html += '<div class="error-flow-card">';
+            html += '<div class="step-panel" data-step="1">';
+            html += '<div class="step-panel-title">첫 번째 단서) 이 문장을 다시 살펴 보세요.</div>';
+            html += '<div class="step-panel-body">' + escapeHtml(sentence) + '</div>';
+            html += '<div class="step-next-wrap"><button type="button" class="step-next-btn" data-next-step="2">잘 모르겠어요.</button></div>';
+            html += '</div>';
+            html += '<div class="step-panel hidden" data-step="2">';
+            html += '<div class="step-panel-title">두 번째 단서) 이 부분을 다시 살펴 보세요.</div>';
+            html += '<div class="step-panel-body"><span class="step-accent">' + escapeHtml(span) + '</span></div>';
+            html += '<div class="step-next-wrap"><button type="button" class="step-next-btn" data-next-step="3">잘 모르겠어요.</button></div>';
+            html += '</div>';
+            html += '<div class="step-panel hidden" data-step="3">';
+            html += '<div class="step-panel-title">세 번째 단서) 아래 질문을 참고해 보세요.</div>';
+            html += '<div class="step-panel-body">' + questionHtml + '</div>';
+            html += '<div class="step-next-wrap"><button type="button" class="step-next-btn" data-next-step="4">잘 모르겠어요.</button></div>';
+            html += '</div>';
+            html += '<div class="step-panel hidden" data-step="4">';
+            html += '<div class="step-panel-title">네 번째 단서) 교과서 예문을 참고해 보세요.</div>';
+            html += '<div class="step-panel-body"><div class="stage-example">' + exampleHtml + '</div></div>';
+            html += '<div class="step-next-wrap"><button type="button" class="step-next-btn" data-next-step="5">잘 모르겠어요.</button></div>';
+            html += '</div>';
+            html += '<div class="step-panel hidden" data-step="5">';
+            html += '<div class="step-panel-title">다섯 번째 단서) 정확한 표현</div>';
+            html += '<div class="step-panel-body">정확한 표현은 <span class="step-answer">"' + escapeHtml(correction || '(정답 없음)') + '"</span> 입니다.</div>';
+            html += '</div>';
+            html += '</div>';
+            return html;
         }
 
-        function buildLeftHtmlFromOriginal(originalText, errorList) {
-            if (!originalText || !errorList.length) return escapeHtml(originalText).replace(/\n/g, '<br>');
-            var text = originalText;
-            if (typeof text.normalize === 'function') text = text.normalize('NFC');
-            var positions = [];
-            for (var i = 0; i < errorList.length; i++) {
-                var err = errorList[i];
-                var span = (err.error_span || '').trim();
-                if (!span) continue;
-                var found = findSpanInText(text, span);
-                if (found) positions.push({ start: found.index, end: found.index + found.length, err: err, span: found.span });
+        function wireErrorFlowButtons(rootEl) {
+            if (!rootEl) return;
+            rootEl.querySelectorAll('.step-next-btn').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var card = btn.closest('.error-flow-card');
+                    if (!card) return;
+                    var nextStep = btn.getAttribute('data-next-step');
+                    var nextPanel = card.querySelector('.step-panel[data-step="' + nextStep + '"]');
+                    if (nextPanel) nextPanel.classList.remove('hidden');
+                    btn.disabled = true;
+                    btn.style.opacity = '0.55';
+                    btn.style.cursor = 'default';
+                });
+            });
+        }
+
+        function mountErrorFlowTabs(rootEl, errorList) {
+            if (!rootEl || !errorList || !errorList.length) return;
+            var tabs = rootEl.querySelectorAll('.key-tab');
+            var container = rootEl.querySelector('#single-error-flow-container');
+            if (!container) return;
+
+            function selectTab(index) {
+                tabs.forEach(function (t) { t.classList.remove('active'); });
+                var selected = rootEl.querySelector('.key-tab[data-error-index="' + index + '"]');
+                if (selected) selected.classList.add('active');
+                container.innerHTML = renderSingleErrorCard(errorList[index]);
+                wireErrorFlowButtons(container);
             }
-            positions.sort(function (a, b) { return a.start - b.start; });
-            var lastEnd = 0;
-            var html = '';
-            for (var j = 0; j < positions.length; j++) {
-                var p = positions[j];
-                if (p.start < lastEnd) continue;
-                html += escapeHtml(text.slice(lastEnd, p.start)).replace(/\n/g, '<br>');
-                html += '<span class="feedback-error-span" data-error-id="' + escapeAttr(String(p.err.id)) + '">' + escapeHtml(p.span) + '</span>';
-                lastEnd = p.end;
+
+            tabs.forEach(function (tab) {
+                tab.addEventListener('click', function () {
+                    var idx = parseInt(tab.getAttribute('data-error-index'), 10);
+                    if (!isNaN(idx)) selectTab(idx);
+                });
+            });
+            selectTab(0);
+        }
+
+        function playDingSound() {
+            try {
+                var AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                var ctx = new AudioCtx();
+                var now = ctx.currentTime;
+
+                // 짧고 경쾌한 "띠링" 사운드: 두 음을 빠르게 재생
+                var osc1 = ctx.createOscillator();
+                var gain1 = ctx.createGain();
+                osc1.type = 'triangle';
+                osc1.frequency.setValueAtTime(1046.5, now); // C6
+                gain1.gain.setValueAtTime(0.0001, now);
+                gain1.gain.exponentialRampToValueAtTime(0.18, now + 0.01);
+                gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+                osc1.connect(gain1).connect(ctx.destination);
+                osc1.start(now);
+                osc1.stop(now + 0.2);
+
+                var osc2 = ctx.createOscillator();
+                var gain2 = ctx.createGain();
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(1318.5, now + 0.09); // E6
+                gain2.gain.setValueAtTime(0.0001, now + 0.09);
+                gain2.gain.exponentialRampToValueAtTime(0.14, now + 0.11);
+                gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+                osc2.connect(gain2).connect(ctx.destination);
+                osc2.start(now + 0.09);
+                osc2.stop(now + 0.3);
+            } catch (e) {
+                // 오디오 재생이 막혀도 화면 동작은 계속
             }
-            html += escapeHtml(text.slice(lastEnd)).replace(/\n/g, '<br>');
-            return html;
+        }
+
+        function popKeysNearButton(fromEl, count) {
+            if (!fromEl || !count || count <= 0) return Promise.resolve();
+            var keyColors = ['#f59e0b', '#3b82f6', '#22c55e', '#ef4444', '#8b5cf6', '#14b8a6', '#f97316', '#ec4899'];
+            var fromRect = fromEl.getBoundingClientRect();
+            var startX = fromRect.left + fromRect.width / 2;
+            var startY = fromRect.top + fromRect.height / 2;
+            var animations = [];
+            playDingSound();
+
+            for (var i = 0; i < count; i++) {
+                var key = document.createElement('div');
+                key.className = 'pop-key';
+                key.textContent = '🔑';
+                key.style.color = keyColors[i % keyColors.length];
+                key.style.left = (startX + ((i % 4) - 1.5) * 22) + 'px';
+                key.style.top = (startY - Math.floor(i / 4) * 16) + 'px';
+                document.body.appendChild(key);
+                animations.push(new Promise(function (resolve) {
+                    setTimeout(function () {
+                        if (key && key.parentNode) key.parentNode.removeChild(key);
+                        resolve();
+                    }, 800);
+                }));
+            }
+            return Promise.all(animations).then(function () { return true; });
         }
 
         document.getElementById('feedbackForm').addEventListener('submit', async function (event) {
             event.preventDefault();
             var writing = document.getElementById('writing').value;
+            var grade = document.getElementById('gradeSelect').value;
+            var publisher = document.getElementById('publisherSelect').value;
+            var unit = document.getElementById('unitSelect').value;
             var submitBtn = document.getElementById('feedbackSubmitBtn');
-            var leftOutput = document.getElementById('feedback-left-output');
             var rightOutput = document.getElementById('feedback-right-output');
+            var feedbackTitle = document.getElementById('feedbackSectionTitle');
 
-            leftOutput.innerHTML = '';
-            rightOutput.innerHTML = '<span class="feedback-right-empty">오류 부분을 클릭해 보세요.</span>';
+            if (currentWritingMode === 'unit' && (!grade || !publisher || !unit)) {
+                rightOutput.innerHTML = escapeHtml('학년, 출판사, 단원을 먼저 선택해 주세요.');
+                return;
+            }
+
+            rightOutput.innerHTML = '<span class="feedback-right-empty">오류별 5단계 안내를 준비하고 있어요...</span>';
+            feedbackTitle.textContent = '👩‍🏫 AI 피드백';
             submitBtn.textContent = '단서 확인 중...';
             submitBtn.disabled = true;
 
@@ -273,155 +1415,29 @@
                 var response = await fetch('/feedback', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ writing: writing })
+                    body: JSON.stringify({
+                        writing: writing,
+                        writing_mode: currentWritingMode,
+                        grade: currentWritingMode === 'unit' ? grade : '',
+                        publisher: currentWritingMode === 'unit' ? publisher : '',
+                        unit: currentWritingMode === 'unit' ? unit : ''
+                    })
                 });
                 var result = await response.json();
                 if (response.ok) {
                     var feedback = result.feedback;
                     var errorList = feedback.error_list || [];
-                    var originalText = feedback.original_text || '';
-                    var sentences = feedback.sentences || splitIntoSentences(originalText);
-
-                    var leftHtml = '';
-                    var hasAnyHighlight = false;
-                    for (var i = 0; i < sentences.length; i++) {
-                        var sent = sentences[i];
-                        var sentErrors = errorList.filter(function (e) {
-                            return findSpanInText(sent, (e.error_span || '').trim());
-                        });
-                        if (sentErrors.length > 0) {
-                            var sentText = sent;
-                            var errPositions = sentErrors.map(function (err) {
-                                var span = (err.error_span || '').trim();
-                                var found = findSpanInText(sentText, span);
-                                return found ? { err: err, span: found.span, idx: found.index, length: found.length } : null;
-                            }).filter(function (p) { return p && p.span; });
-                            errPositions.sort(function (a, b) { return a.idx - b.idx; });
-                            var lastEnd = 0;
-                            var frag = '';
-                            for (var k = 0; k < errPositions.length; k++) {
-                                var p = errPositions[k];
-                                frag += escapeHtml(sentText.slice(lastEnd, p.idx)).replace(/\n/g, '<br>');
-                                frag += '<span class="feedback-error-span" data-error-id="' + escapeAttr(String(p.err.id)) + '">' + escapeHtml(p.span) + '</span>';
-                                lastEnd = p.idx + p.length;
-                                hasAnyHighlight = true;
-                            }
-                            frag += escapeHtml(sentText.slice(lastEnd)).replace(/\n/g, '<br>');
-                            leftHtml += '<div class="feedback-sentence">' + frag + '</div>';
-                        } else {
-                            leftHtml += '<div class="feedback-sentence">' + escapeHtml(sent).replace(/\n/g, '<br>') + '</div>';
-                        }
+                    var keyColors = ['#f59e0b', '#3b82f6', '#22c55e', '#ef4444', '#8b5cf6', '#14b8a6', '#f97316', '#ec4899'];
+                    var titleKeys = '';
+                    if (errorList.length > 0) {
+                        await popKeysNearButton(submitBtn, errorList.length);
                     }
-                    if (errorList.length > 0 && !hasAnyHighlight) {
-                        var normText = (typeof originalText.normalize === 'function') ? originalText.normalize('NFC') : originalText;
-                        var errPositions = [];
-                        for (var ei = 0; ei < errorList.length; ei++) {
-                            var err = errorList[ei];
-                            var sp = (err.error_span || '').trim();
-                            if (!sp) continue;
-                            var found = findSpanInText(normText, sp);
-                            if (found) errPositions.push({ start: found.index, end: found.index + found.length, err: err, span: found.span });
-                        }
-                        errPositions.sort(function (a, b) { return a.start - b.start; });
-                        var sentStarts = [];
-                        var pos = 0;
-                        var re = /[.!?]\s+/g;
-                        var match;
-                        sentStarts.push(0);
-                        while ((match = re.exec(normText)) !== null) {
-                            pos = match.index + match[0].length;
-                            sentStarts.push(pos);
-                        }
-                        var fallbackParts = [];
-                        for (var fi = 0; fi < sentStarts.length; fi++) {
-                            var sentStart = sentStarts[fi];
-                            var sentEnd = fi + 1 < sentStarts.length ? sentStarts[fi + 1] : normText.length;
-                            var sentText = normText.slice(sentStart, sentEnd);
-                            if (!sentText.trim()) continue;
-                            var inSent = [];
-                            for (var pi = 0; pi < errPositions.length; pi++) {
-                                var p = errPositions[pi];
-                                if (p.start < sentEnd && p.end > sentStart) {
-                                    inSent.push({ start: p.start - sentStart, end: p.end - sentStart, err: p.err, span: p.span });
-                                }
-                            }
-                            var last = 0;
-                            var frag = '';
-                            for (var ki = 0; ki < inSent.length; ki++) {
-                                var q = inSent[ki];
-                                if (q.start < last) continue;
-                                frag += escapeHtml(sentText.slice(last, q.start)).replace(/\n/g, '<br>');
-                                frag += '<span class="feedback-error-span" data-error-id="' + escapeAttr(String(q.err.id)) + '">' + escapeHtml(q.span) + '</span>';
-                                last = q.end;
-                            }
-                            frag += escapeHtml(sentText.slice(last)).replace(/\n/g, '<br>');
-                            fallbackParts.push('<div class="feedback-sentence">' + frag + '</div>');
-                        }
-                        leftHtml = fallbackParts.length ? fallbackParts.join('') : '<div class="feedback-sentence">' + buildLeftHtmlFromOriginal(originalText, errorList) + '</div>';
+                    for (var ti = 0; ti < errorList.length; ti++) {
+                        titleKeys += '<span style="color:' + keyColors[ti % keyColors.length] + ';">🔑</span>';
                     }
-                    if (!leftHtml && originalText) {
-                        leftHtml = '<div class="feedback-sentence">' + escapeHtml(originalText).replace(/\n/g, '<br>') + '</div>';
-                    }
-                    leftOutput.innerHTML = leftHtml || escapeHtml(originalText).replace(/\n/g, '<br>');
-
-                    var errorMap = {};
-                    for (var m = 0; m < errorList.length; m++) {
-                        errorMap[String(errorList[m].id)] = errorList[m];
-                    }
-
-                    leftOutput.querySelectorAll('.feedback-error-span').forEach(function (el) {
-                        el.addEventListener('click', function () {
-                            var errId = el.getAttribute('data-error-id');
-                            var err = errorMap[errId];
-                            if (!err) return;
-
-                            leftOutput.querySelectorAll('.feedback-error-span').forEach(function (s) { s.classList.remove('feedback-error-span-selected'); });
-                            el.classList.add('feedback-error-span-selected');
-
-                            var state = { step: 2, exampleShown: false, correctionShown: false };
-                            var question = err.question || '이 부분을 다시 확인해 보세요.';
-                            var questionSource = err.question_source || 'ai';
-                            var exampleSentences = err.example_sentences || [];
-
-                            function renderRight() {
-                                var questionHtml = questionSource === 'ai'
-                                    ? '<span class="ai-generated">' + escapeHtml(question) + '</span>'
-                                    : escapeHtml(question);
-                                var html = '<div class="stage-question">' + questionHtml + '</div>';
-                                html += '<button type="button" class="feedback-btn" id="btn-example">예문 보기</button>';
-                                html += '<div id="example-area" style="display:none;"></div>';
-                                html += '<button type="button" class="feedback-btn" id="btn-correction" style="display:none;">정답 보기</button>';
-                                html += '<div id="correction-area" style="display:none;"></div>';
-                                rightOutput.innerHTML = html;
-
-                                document.getElementById('btn-example').addEventListener('click', function () {
-                                    var exampleParts = [];
-                                    if (exampleSentences.length > 0) {
-                                        for (var k = 0; k < exampleSentences.length; k++) {
-                                            var item = exampleSentences[k];
-                                            var t = (item && item.text) ? item.text : '';
-                                            var src = (item && item.source) ? item.source : 'ai';
-                                            if (t) {
-                                                var formatted = formatExampleWithBold(t);
-                                                exampleParts.push(src === 'ai' ? '<span class="ai-generated">' + formatted + '</span>' : formatted);
-                                            }
-                                        }
-                                    }
-                                    var exampleContent = exampleParts.length ? exampleParts.join('<br>') : escapeHtml('예문 없음');
-                                    document.getElementById('example-area').style.display = 'block';
-                                    document.getElementById('example-area').innerHTML = '<div class="stage-example">' + exampleContent + '</div>';
-                                    document.getElementById('btn-correction').style.display = 'inline-block';
-                                });
-
-                                document.getElementById('btn-correction').addEventListener('click', function () {
-                                    var cor = (err.correction !== undefined && err.correction !== null) ? String(err.correction) : '';
-                                    document.getElementById('correction-area').style.display = 'block';
-                                    document.getElementById('correction-area').innerHTML = '<div class="stage-correction">' + escapeHtml(err.error_span || '') + ' → ' + escapeHtml(cor) + '</div>';
-                                });
-                            }
-                            renderRight();
-                        });
-                    });
+                    feedbackTitle.innerHTML = '👩‍🏫 AI 피드백' + (titleKeys ? '<span class="title-keys">' + titleKeys + '</span>' : '');
+                    rightOutput.innerHTML = renderErrorFlowSteps(errorList);
+                    mountErrorFlowTabs(rightOutput, errorList);
 
                     submitBtn.textContent = '단서 도착!';
                     submitBtn.disabled = false;
@@ -436,6 +1452,9 @@
                 submitBtn.disabled = false;
             }
         });
+
+        loadGradeOptions();
+        setWritingMode('unit');
     </script>
 </body>
 </html>

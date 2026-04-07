@@ -7,9 +7,25 @@ import unicodedata
 from flask import Flask, request, jsonify, render_template
 from openai import OpenAI
 import pandas as pd
+from database import (
+    init_db,
+    get_expected_error_scripts,
+)
 
 app = Flask(__name__)
 _openai_client = None
+
+# 서버 시작 시 필요한 테이블을 미리 생성
+try:
+    init_db()
+except Exception as e:
+    print(f"[init_db] 초기화 실패: {e}")
+
+
+# 학년/출판사/단원 고정 선택지
+GRADE_OPTIONS = ["5학년", "6학년"]
+PUBLISHER_OPTIONS = ["YBM(최희경)", "YBM(김혜리)"]
+UNIT_OPTIONS = [f"{i}단원" for i in range(1, 13)]
 
 
 def _get_openai_client():
@@ -134,6 +150,51 @@ def _clean_example_sentence(text):
     return text.strip()
 
 
+def _parse_script_examples(raw_examples):
+    """예상 오류 스크립트의 예문 문자열을 배열로 변환."""
+    if not raw_examples:
+        return []
+    text = str(raw_examples).strip()
+    if not text:
+        return []
+    # JSON 배열 저장을 우선 지원
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, list):
+            return [_clean_example_sentence(str(x)) for x in parsed if str(x).strip()][:5]
+    except Exception:
+        pass
+    # fallback: "|" 또는 줄바꿈 구분
+    return [
+        _clean_example_sentence(s)
+        for s in text.replace("|", "\n").split("\n")
+        if s and str(s).strip()
+    ][:5]
+
+
+def _match_expected_script(error_span, script_rows):
+    """error_span과 예상 오류 스크립트를 매칭 (exact 우선, contains 차선)."""
+    span = (error_span or "").strip().lower()
+    if not span or not script_rows:
+        return None
+    exact_matches = []
+    contains_matches = []
+    for row in script_rows:
+        pattern = (row.get("error_pattern") or "").strip()
+        if not pattern:
+            continue
+        pattern_lower = pattern.lower()
+        if span == pattern_lower:
+            exact_matches.append(row)
+        elif pattern_lower in span or span in pattern_lower:
+            contains_matches.append(row)
+    if exact_matches:
+        return exact_matches[0]
+    if contains_matches:
+        return contains_matches[0]
+    return None
+
+
 def _ensure_correction_is_replacement_only(correction, error_span):
     """교정이 문장 전체가 아닌 error_span 대체어만 되도록 보정.
     예: correction='My school is good.', error_span='goods' -> 'good'"""
@@ -187,6 +248,32 @@ Example: 나의 주말 일과, 내가 좋아하는 음식 소개하기"""
             jsonify({"error": "주제를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."}),
             503,
         )
+
+
+@app.route("/api/options/grades", methods=["GET"])
+def api_option_grades():
+    return jsonify({"grades": GRADE_OPTIONS}), 200
+
+
+@app.route("/api/options/publishers", methods=["GET"])
+def api_option_publishers():
+    grade = (request.args.get("grade") or "").strip()
+    if not grade:
+        return jsonify({"error": "grade is required"}), 400
+    if grade not in GRADE_OPTIONS:
+        return jsonify({"publishers": []}), 200
+    return jsonify({"publishers": PUBLISHER_OPTIONS}), 200
+
+
+@app.route("/api/options/units", methods=["GET"])
+def api_option_units():
+    grade = (request.args.get("grade") or "").strip()
+    publisher = (request.args.get("publisher") or "").strip()
+    if not grade or not publisher:
+        return jsonify({"error": "grade and publisher are required"}), 400
+    if grade not in GRADE_OPTIONS or publisher not in PUBLISHER_OPTIONS:
+        return jsonify({"units": []}), 200
+    return jsonify({"units": UNIT_OPTIONS}), 200
 
 
 def _parse_json_from_response(content):
@@ -686,13 +773,22 @@ def api_call_classify_errors_to_louvain_batch(
 
 @app.route("/feedback", methods=["POST"])
 def get_feedback():
-    data = request.get_json()
+    data = request.get_json() or {}
     student_writing = (data.get("writing") or "").strip()
+    writing_mode = (data.get("writing_mode") or "unit").strip().lower()
+    selected_grade = (data.get("grade") or "").strip()
+    selected_publisher = (data.get("publisher") or "").strip()
+    selected_unit = (data.get("unit") or "").strip()
     if isinstance(student_writing, str) and student_writing:
         student_writing = student_writing.replace("\r\n", "\n").replace("\r", "\n")
         student_writing = unicodedata.normalize("NFC", student_writing)
 
     if not student_writing:
+        return jsonify({"error": "Missing required fields"}), 400
+    is_unit_mode = writing_mode == "unit"
+    if is_unit_mode and (
+        not selected_grade or not selected_publisher or not selected_unit
+    ):
         return jsonify({"error": "Missing required fields"}), 400
 
     try:
@@ -720,6 +816,16 @@ def get_feedback():
             ),
             200,
         )
+
+    expected_script_rows = []
+    if is_unit_mode:
+        try:
+            expected_script_rows = get_expected_error_scripts(
+                selected_grade, selected_publisher, selected_unit
+            )
+        except Exception as e:
+            print(f"[get_feedback] 예상 오류 스크립트 로드 실패: {e}")
+            expected_script_rows = []
 
     try:
         # 단원/핵심 표현 없음 → 모든 오류를 일반 오류로 처리
@@ -870,7 +976,21 @@ def get_feedback():
             matched = _match_error_to_csv(desc, error_span=span, correction=correction)
         question = (matched.get("question") or "").strip() if matched else ""
         question_source = "csv" if (matched and question) else "ai"
+        source_track = "unexpected_mapping"
+        matched_script = _match_expected_script(span, expected_script_rows)
+        if matched_script:
+            script_question = (matched_script.get("question") or "").strip()
+            if script_question:
+                question = script_question
+                question_source = "expected_script"
+                source_track = "expected_script"
         example_sentences = []
+        if matched_script:
+            script_examples = _parse_script_examples(
+                matched_script.get("example_sentences")
+            )
+            if script_examples:
+                example_sentences = [{"text": t, "source": "expected_script"} for t in script_examples]
         if code == "KO":
             # KO: AI 생성 예문 사용 (없으면 개별 재시도)
             ko_ex = (
@@ -885,7 +1005,8 @@ def get_feedback():
                     ko_ex = fallback.get(eid) or fallback.get(int(eid)) or fallback.get(str(eid)) or []
                 except Exception:
                     pass
-            example_sentences = [{"text": t, "source": "ai"} for t in ko_ex]
+            if not example_sentences:
+                example_sentences = [{"text": t, "source": "ai"} for t in ko_ex]
         elif code == "FS":
             # FS(철자): AI 생성 예문 사용 (없으면 개별 재시도)
             fs_ex = (
@@ -900,30 +1021,32 @@ def get_feedback():
                     fs_ex = fallback.get(eid) or fallback.get(int(eid)) or fallback.get(str(eid)) or []
                 except Exception:
                     pass
-            example_sentences = [{"text": t, "source": "ai"} for t in fs_ex]
+            if not example_sentences:
+                example_sentences = [{"text": t, "source": "ai"} for t in fs_ex]
         else:
-            csv_ex = (matched.get("example_sentence") or "").strip() if matched else ""
-            if csv_ex:
-                parts = [
-                    p.strip() for p in csv_ex.replace("|", "\n").split("\n") if p.strip()
-                ][:5]
-                example_sentences = [
-                    {"text": _clean_example_sentence(p), "source": "csv"} for p in parts
-                ]
-            else:
-                # CSV에 예문 없음 → AI로 생성
-                if correction:
-                    try:
-                        fallback = api_call_generate_example_sentences([(eid, correction)])
-                        ai_ex = (
-                            fallback.get(eid)
-                            or fallback.get(int(eid))
-                            or fallback.get(str(eid))
-                            or []
-                        )
-                        example_sentences = [{"text": t, "source": "ai"} for t in ai_ex]
-                    except Exception:
-                        pass
+            if not example_sentences:
+                csv_ex = (matched.get("example_sentence") or "").strip() if matched else ""
+                if csv_ex:
+                    parts = [
+                        p.strip() for p in csv_ex.replace("|", "\n").split("\n") if p.strip()
+                    ][:5]
+                    example_sentences = [
+                        {"text": _clean_example_sentence(p), "source": "csv"} for p in parts
+                    ]
+                else:
+                    # CSV에 예문 없음 → AI로 생성
+                    if correction:
+                        try:
+                            fallback = api_call_generate_example_sentences([(eid, correction)])
+                            ai_ex = (
+                                fallback.get(eid)
+                                or fallback.get(int(eid))
+                                or fallback.get(str(eid))
+                                or []
+                            )
+                            example_sentences = [{"text": t, "source": "ai"} for t in ai_ex]
+                        except Exception:
+                            pass
         # 5개 미만일 경우 AI로 추가 생성하여 5개 채우기
         if len(example_sentences) < 5 and correction:
             try:
@@ -955,6 +1078,7 @@ def get_feedback():
                 "question": question,
                 "question_source": question_source,
                 "example_sentences": example_sentences,
+                "source_track": source_track,
             }
         )
 
@@ -974,4 +1098,5 @@ def get_feedback():
 
 
 if __name__ == "__main__":
+    init_db()
     app.run(debug=True, port=5002)

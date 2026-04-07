@@ -1,4 +1,4 @@
-# AI-DDL Writing
+# Clue-Write
 
 학년·출판사·단원을 선택한 뒤 학생 영어 작문에 대한 AI 피드백을 받는 웹 앱입니다.  
 오류 추출, 핵심 표현 분류, 수정 제안, 단서 예문(KWIC)을 제공합니다.
@@ -14,7 +14,7 @@
    `$env:OPENAI_API_KEY = "your-api-key"`
 
 3. 서버 실행  
-   `python "AI-DDL Writing.py"`  
+   `python "Clue-Writing.py"`  
    또는 **run.bat** 더블클릭
 
 4. 브라우저에서 http://127.0.0.1:5001 접속
