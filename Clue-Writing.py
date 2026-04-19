@@ -3,6 +3,7 @@ import os
 import re
 import time
 import unicodedata
+from difflib import SequenceMatcher
 
 from flask import Flask, request, jsonify, render_template
 from openai import OpenAI
@@ -26,6 +27,10 @@ except Exception as e:
 GRADE_OPTIONS = ["5학년", "6학년"]
 PUBLISHER_OPTIONS = ["YBM(최희경)", "YBM(김혜리)"]
 UNIT_OPTIONS = [f"{i}단원" for i in range(1, 13)]
+
+# API에 오류 설명이 있을 때 단원 스크립트 순위: 패턴 + CSV error_description (설명 비중 높음)
+_SCRIPT_RANK_WEIGHT_PATTERN_WITH_DESC = 0.35
+_SCRIPT_RANK_WEIGHT_DESCRIPTION_WITH_DESC = 0.65
 
 
 def _get_openai_client():
@@ -75,7 +80,7 @@ def _cell_str(val):
 
 
 def _load_louvain_error_tags():
-    """louvain_tag_examples.csv 단일 파일 로드 (code, label_en, desc_ko, question, example_sentence)."""
+    """louvain_tag_examples.csv 단일 파일 로드 (code, label_en, description, question, example_sentence)."""
     global _louvain_cache
     if _louvain_cache is not None:
         return _louvain_cache
@@ -94,7 +99,9 @@ def _load_louvain_error_tags():
             if not code:
                 continue
             label_en = _cell_str(r.get("label_en"))
-            desc_ko = _cell_str(r.get("desc_ko"))
+            description = _cell_str(
+                r.get("description") or r.get("desc_ko")
+            )  # desc_ko: 예전 CSV 호환
             question = _cell_str(r.get("question"))
             ex = _cell_str(r.get("Example sentences") or r.get("example_sentence"))
             if ex:
@@ -103,7 +110,7 @@ def _load_louvain_error_tags():
                 {
                     "code": code,
                     "label_en": label_en,
-                    "desc_ko": desc_ko,
+                    "description": description,
                     "question": question,
                     "example_sentence": ex,
                 }
@@ -125,20 +132,39 @@ def _get_louvain_row_by_code(code):
 
 
 def _match_error_to_csv(description, error_span=None, correction=None):
-    """description 키워드로 매칭. AI 분류 실패 시 폴백용."""
+    """API description과 Louvain CSV의 description·label 정규화 유사도를 우선. 폴백으로 영어 토큰 겹침."""
     if not description or not isinstance(description, str):
+        return None
+    api_norm = _normalize_for_script_description_match(description)
+    if not api_norm:
         return None
     desc_lower = description.strip().lower()
     best_row = None
-    best_count = 0
+    best_key = (-1.0, -1, -1)  # (전체유사도, 토큰히트, 라벨유사도) 내림차순 정렬용
+
     for row in _load_louvain_error_tags():
-        kw = row.get("label_en", "") + " " + row.get("desc_ko", "")
+        label_en = (row.get("label_en") or "").strip()
+        row_desc = (row.get("description") or "").strip()
+        row_blob = _normalize_for_script_description_match(f"{label_en} {row_desc}")
+        full_sim = (
+            SequenceMatcher(None, api_norm, row_blob).ratio() if row_blob else 0.0
+        )
+        label_sim = (
+            SequenceMatcher(
+                None, api_norm, _normalize_for_script_description_match(label_en)
+            ).ratio()
+            if label_en
+            else 0.0
+        )
+        kw = f"{label_en} {row_desc}"
         words = re.findall(r"[a-z0-9]{2,}", kw.lower())
-        count = sum(
+        token_hits = sum(
             1 for w in words if w in desc_lower and w not in ("error", "use", "other")
         )
-        if count > best_count:
-            best_count = count
+        # 설명 전체 매칭을 최우선, 동점 시 토큰·라벨 보조
+        key = (full_sim, token_hits, label_sim)
+        if key > best_key:
+            best_key = key
             best_row = row
     return best_row
 
@@ -148,6 +174,58 @@ def _clean_example_sentence(text):
     if not text or not isinstance(text, str):
         return text
     return text.strip()
+
+
+def _strip_bold_markers_for_prompt(text):
+    """LLM 프롬프트에 넣을 때 예문의 ** 강조 표시 제거."""
+    if not text or not isinstance(text, str):
+        return ""
+    return text.replace("**", "").strip()
+
+
+def _postprocess_replacement_with_step4_examples(
+    replacement, error_span, example_texts, sentence
+):
+    """4단계 예문과 어긋나는 흔한 모델 오답을 규칙으로 보정 (예: feeling ↔ feel)."""
+    r = (replacement or "").strip()
+    span = (error_span or "").strip()
+    if not r or not example_texts:
+        return r
+    ex_join = " ".join(example_texts).lower()
+    rl = r.lower()
+    span_l = span.lower()
+    sent_l = (sentence or "").strip().lower()
+
+    # 예문에 'feel the same' 패턴이 있는데 치환어가 feeling 등으로만 나온 경우
+    if "feel the same" in ex_join:
+        if rl in ("feeling", "feels", "felt"):
+            if "same" in sent_l:
+                return "feel the same"
+            return "feel"
+        if rl == "feel" and "same" in sent_l and "feel the same" in ex_join:
+            return "feel the same"
+
+    # 예문에 동사 feel(단어)이 있는데 모델이 명사/형용사용 feeling만 단독 출력
+    if rl == "feeling":
+        if re.search(r"\bfeel\b", ex_join) and not re.search(
+            r"\bfeeling\b", ex_join
+        ):
+            return "feel"
+
+    # be + 동사 이중 표현(span) + 예문이 feel 패턴일 때, 잘못된 -ing/활용만 고침
+    if re.search(r"\b(am|is|are)\b", span_l) and re.search(r"\bfeel\b", span_l):
+        if re.search(r"\bfeel\b", ex_join) and not re.search(r"\bfeeling\b", ex_join):
+            if "feel the same" in ex_join and "same" in sent_l and rl in (
+                "feeling",
+                "feels",
+                "felt",
+                "feel",
+            ):
+                return "feel the same"
+            if rl == "feeling":
+                return "feel"
+
+    return r
 
 
 def _parse_script_examples(raw_examples):
@@ -172,27 +250,122 @@ def _parse_script_examples(raw_examples):
     ][:5]
 
 
-def _match_expected_script(error_span, script_rows):
-    """error_span과 예상 오류 스크립트를 매칭 (exact 우선, contains 차선)."""
-    span = (error_span or "").strip().lower()
-    if not span or not script_rows:
-        return None
-    exact_matches = []
-    contains_matches = []
+def _expected_script_pattern_score(span, sentence, pattern_lower):
+    """error_pattern과의 유사도. span만 보면 짧은 구에서 엉뚱한 패턴이 이기는 경우가 있어 문장도 함께 본다."""
+    span_l = (span or "").strip().lower()
+    sent_l = (sentence or "").strip().lower()
+    r_span = SequenceMatcher(None, span_l, pattern_lower).ratio() if span_l else 0.0
+    r_sent = SequenceMatcher(None, sent_l, pattern_lower).ratio() if sent_l else 0.0
+    return max(r_span, r_sent)
+
+
+def _normalize_for_script_description_match(text):
+    """API 설명 vs CSV error_description 비교용(공백·대소문자·유니코드 정규화)."""
+    if not text:
+        return ""
+    normalized = unicodedata.normalize("NFC", str(text)).strip().lower()
+    return re.sub(r"\s+", " ", normalized)
+
+
+def _expected_script_row_key(row):
+    """스크립트 행 구분 키(한 피드백에서 같은 행을 두 오류에 중복 배정하지 않기 위함)."""
+    try:
+        return ("id", int(row.get("id", 0)))
+    except (TypeError, ValueError):
+        return (
+            "pq",
+            (row.get("error_pattern") or "").strip(),
+            (row.get("question") or "").strip(),
+        )
+
+
+def _rank_expected_script_matches(
+    error_span, script_rows, sentence=None, api_error_description=None
+):
+    """유사도 내림차순, 동점 시 CSV id 오름차순인 (score, row) 목록.
+
+    API에 오류 설명(description)이 있으면 반드시 그것과 CSV error_description을 맞춰 순위를 매긴다.
+    이때 error_description이 비어 있는 스크립트 행은 후보에서 제외한다(문장 유사도만으로 고르지 않음).
+    API 설명이 없을 때만 패턴·문장 유사도만 사용한다.
+    """
+    span_l = (error_span or "").strip().lower()
+    sent_l = (sentence or "").strip()
+    if (not span_l and not sent_l) or not script_rows:
+        return []
+    api_desc_raw = (api_error_description or "").strip()
+    api_norm = _normalize_for_script_description_match(api_desc_raw)
+    require_script_description = bool(api_norm)
+
+    items = []
     for row in script_rows:
         pattern = (row.get("error_pattern") or "").strip()
         if not pattern:
             continue
         pattern_lower = pattern.lower()
-        if span == pattern_lower:
-            exact_matches.append(row)
-        elif pattern_lower in span or span in pattern_lower:
-            contains_matches.append(row)
-    if exact_matches:
-        return exact_matches[0]
-    if contains_matches:
-        return contains_matches[0]
-    return None
+        pattern_score = _expected_script_pattern_score(
+            error_span, sentence, pattern_lower
+        )
+        script_ed = (row.get("error_description") or "").strip()
+        if require_script_description:
+            # API 설명이 있는데 스크립트 설명이 없으면 후보 제외
+            if not script_ed:
+                continue
+            desc_ratio = SequenceMatcher(
+                None,
+                api_norm,
+                _normalize_for_script_description_match(script_ed),
+            ).ratio()
+            score = (
+                _SCRIPT_RANK_WEIGHT_PATTERN_WITH_DESC * pattern_score
+                + _SCRIPT_RANK_WEIGHT_DESCRIPTION_WITH_DESC * desc_ratio
+            )
+        else:
+            score = pattern_score
+        try:
+            rid = int(row.get("id", 0))
+        except (TypeError, ValueError):
+            rid = 0
+        items.append((score, rid, row))
+    items.sort(key=lambda x: (-x[0], x[1]))
+    return [(s, r) for s, rid, r in items]
+
+
+def _match_expected_script(
+    error_span,
+    script_rows,
+    sentence=None,
+    used_row_keys=None,
+    api_error_description=None,
+):
+    """패턴·설명으로 스크립트 행 선택. API에 description이 있으면 CSV error_description 없는 행은 후보에서 제외된다. used_row_keys가 있으면 이미 쓴 행은 건너뛴다."""
+    ranked = _rank_expected_script_matches(
+        error_span,
+        script_rows,
+        sentence=sentence,
+        api_error_description=api_error_description,
+    )
+    if not ranked:
+        return None
+
+    if used_row_keys is None:
+        best_score = ranked[0][0]
+        tie = [r for s, r in ranked if abs(s - best_score) < 1e-9]
+
+        def _row_id_obj(r):
+            try:
+                return int(r.get("id", 0))
+            except (TypeError, ValueError):
+                return 0
+
+        return min(tie, key=_row_id_obj)
+
+    for _score, row in ranked:
+        key = _expected_script_row_key(row)
+        if key not in used_row_keys:
+            used_row_keys.add(key)
+            return row
+    # 단원 스크립트가 한 종류뿐이면 중복 허용(최상위 매칭)
+    return ranked[0][1]
 
 
 def _ensure_correction_is_replacement_only(correction, error_span):
@@ -466,6 +639,7 @@ def api_call_1_extract_errors(writing):
 - 문법·철자·굴절·전치사 등 모든 영어 오류를 포함하세요.
 - **한글로 쓰인 부분**은 영어로 바꿔 써야 하므로 오류로 포함하세요. (예: "집" → description에 "한국어" 포함)
 - **error_span은 반드시 위 학생 작문 원문에 나온 문자열을 그대로 복사**하세요. (예: "thinked"가 있으면 error_span은 "thinked")
+- **오류가 난 최소 범위**를 고르세요. `I like to + 동사원형`이 **하고 싶다/정중한 요청** 뜻인데 `I would like to`가 빠진 경우, 잘못된 부분은 보통 **"like" 또는 "I like"** 입니다. **"to have a cake" 같은 to부정식 구만** 잡지 마세요.
 응답은 반드시 아래 형태의 JSON 하나만 출력하세요. 다른 설명 없이 JSON만.
 {{"errors": [{{"id": 0, "sentence": "오류가 포함된 문장", "error_span": "원문과 동일한 문자열", "description": "오류 유형"}}, ...]}}"""
 
@@ -475,7 +649,13 @@ def api_call_1_extract_errors(writing):
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an expert ESL/EFL error detector. List every real error including: spelling (rabit→rabbit), tense (e.g. 'when I am a child' in a past context → should be 'when I was a child'), grammar, and Korean words/phrases that should be written in English (use description '한국어' or 'Korean' for those). Do NOT flag correct pronoun use: object pronouns (him, her, them, me) after a verb or preposition are correct. Only flag pronouns when case is wrong. Use for error_span the EXACT substring from the student writing. Reply with a single JSON object: {\"errors\": [...]}. No other text.",
+                    "content": (
+                        "You are an expert ESL/EFL error detector. List every real error including: spelling, tense, grammar, and Korean that should be English. "
+                        "Do NOT flag correct object pronouns after verbs/prepositions. "
+                        "error_span must be the EXACT substring from the student text — choose the **minimal** wrong part. "
+                        "For 'I like to + verb' meaning a wish/polite desire (same as 'I would like to'), the mistake is usually missing 'would': mark 'like' or 'I like', NOT the whole infinitive phrase 'to have ...'. "
+                        "Reply with a single JSON object: {\"errors\": [...]}. No other text."
+                    ),
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -625,6 +805,174 @@ def api_call_get_corrections(non_key_errors):
         raise
 
 
+def api_call_refine_correction_with_clues(
+    sentence,
+    error_span,
+    draft_correction,
+    step3_question,
+    step4_example_texts,
+):
+    """5단계(정확한 표현): 3단계 질문·4단계 예문을 최우선으로 치환어를 정함."""
+    sent = (sentence or "").strip()
+    span = (error_span or "").strip()
+    draft = (draft_correction or "").strip()
+    q = (step3_question or "").strip()
+    examples = [
+        _strip_bold_markers_for_prompt(t)
+        for t in (step4_example_texts or [])
+        if _strip_bold_markers_for_prompt(t)
+    ]
+    if not span or not draft:
+        return draft
+    if not q and not examples:
+        return draft
+
+    examples_block = "\n".join(f"- {t}" for t in examples[:10]) if examples else "(없음)"
+    q_block = q if q else "(없음)"
+
+    # 3.5는 지시 이탈이 잦아, 5단계 보정만 더 안정적인 모델 사용(환경변수로 변경 가능)
+    refine_model = os.getenv("OPENAI_STEP5_REFINE_MODEL", "gpt-4o-mini")
+
+    user_prompt = f"""역할: 학생 화면의 **5단계(정확한 표현)** 에 넣을 영어 치환어만 정한다.
+
+반드시 지킬 것:
+- **3단계 질문**과 **4단계 예문**이 가리키는 문법·표현을 그대로 따른다. 초안 교정어는 힌트일 뿐이며, 질문/예문과 충돌하면 **초안은 버린다**.
+- 4단계 예문에 나온 **동사 형태·구(phrase)** 를 복사해 쓴다. 예문이 "I feel the same." 형태면 error_span 자리에는 "feel the same" 또는 문맥상 맞는 같은 패턴를 넣는다. 예문이 동사원형 feel을 쓰는데 단독으로 "feeling"만 내지 않는다.
+- 출력은 error_span과 **같은 위치**에 끼워 넣을 **영어 문자열 하나**만. JSON의 값으로만 제시한다.
+
+【3단계 — 질문 단서】
+{q_block}
+
+【4단계 — 교과서 예문】
+{examples_block}
+
+【문맥】
+- 전체 문장: {sent}
+- error_span (이 부분을 바꿈): {span}
+- (참고용, 틀릴 수 있음) 초안 교정어: {draft}
+
+소규모 예시:
+- error_span이 "am feel"이고 예문에 "I feel the same." 가 있으면 replacement는 "feel the same" 또는 "feel" 등 예문 패턴에 맞춘다. "feeling"만 단독으로 내지 않는다.
+
+응답 형식(이것만, 설명 없음):
+{{"replacement":"여기에 치환어"}}"""
+
+    try:
+        response = _openai_chat_with_retry(
+            model=refine_model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You choose the English text that replaces error_span in the sentence. "
+                        "Step 3 (question) and step 4 (examples) are the source of truth; ignore the draft "
+                        "if it conflicts. Match verb forms and phrases used in the examples (e.g. use 'feel' / "
+                        "'feel the same' when examples do—not a lone 'feeling' if examples use base 'feel'). "
+                        "Reply with ONLY valid JSON: {\"replacement\":\"...\"} — no markdown, no extra text."
+                    ),
+                },
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.0,
+            max_tokens=200,
+        )
+        raw = (response.choices[0].message.content or "").strip()
+        refined = ""
+        parsed = _parse_json_from_response(raw)
+        if isinstance(parsed, dict):
+            refined = (parsed.get("replacement") or parsed.get("correction") or "").strip()
+        if not refined:
+            line = raw.split("\n")[0].strip()
+            if (line.startswith('"') and line.endswith('"')) or (
+                line.startswith("'") and line.endswith("'")
+            ):
+                line = line[1:-1].strip()
+            refined = line
+        if not refined:
+            return draft
+        refined = _ensure_correction_is_replacement_only(refined, span)
+        refined = _postprocess_replacement_with_step4_examples(
+            refined, span, examples, sent
+        )
+        refined = _ensure_correction_is_replacement_only(refined, span)
+        return refined if refined else draft
+    except Exception as e:
+        print(f"[API refine_correction_with_clues] 실패: {e}")
+        return draft
+
+
+def _text_same_ignore_case(a, b):
+    """두 문자열이 공백·대소문자 무시하고 동일한지."""
+    return (a or "").strip().lower() == (b or "").strip().lower()
+
+
+def api_call_salvage_correction_when_unchanged(
+    sentence,
+    error_span,
+    step3_question,
+    step4_example_texts,
+):
+    """교정어가 error_span과 같을 때(실질적 교정 실패): 3·4단계 단서만으로 정답 표현 재생성."""
+    sent = (sentence or "").strip()
+    span = (error_span or "").strip()
+    q = (step3_question or "").strip()
+    examples = [
+        _strip_bold_markers_for_prompt(t)
+        for t in (step4_example_texts or [])
+        if _strip_bold_markers_for_prompt(t)
+    ]
+    if not sent or not span or (not q and not examples):
+        return ""
+    examples_block = "\n".join(f"- {t}" for t in examples[:10])
+    q_block = q if q else "(없음)"
+    model = os.getenv("OPENAI_STEP5_REFINE_MODEL", "gpt-4o-mini")
+
+    user_prompt = f"""상황: 오류로 표시한 문자열과 모델이 낸 교정어가 **완전히 같아서** 학생에게는 아무것도 고쳐지지 않은 상태입니다. 표시된 구간(error_span)이 잘못 잡혔을 수 있습니다.
+
+【학생 문장】{sent}
+【표시된 error_span】{span}
+
+【3단계 질문】
+{q_block}
+
+【4단계 예문】
+{examples_block}
+
+과제: 3·4단계와 **모순 없이** 이 오류를 반영한 **올바른 영어 표현**을 하나만 정하세요. 예문의 would like / I'd like 패턴을 따르세요.
+- 5단계에 보여 줄 한 덩어리면 되며, 원문의 잘못된 span보다 **긴 구**여도 됩니다(예: I'd like to have a cake).
+
+응답 형식만: {{"replacement":"..."}}"""
+
+    try:
+        response = _openai_chat_with_retry(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Reply with ONLY valid JSON: {\"replacement\":\"...\"}. "
+                        "The replacement is the correct English for the student, aligned with the question and examples. "
+                        "It may be longer than the marked span if the span was misidentified."
+                    ),
+                },
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.0,
+            max_tokens=150,
+        )
+        raw = (response.choices[0].message.content or "").strip()
+        parsed = _parse_json_from_response(raw)
+        if not isinstance(parsed, dict):
+            return ""
+        rep = (parsed.get("replacement") or "").strip()
+        if not rep or _text_same_ignore_case(rep, span):
+            return ""
+        return rep
+    except Exception as e:
+        print(f"[API salvage_correction_when_unchanged] 실패: {e}")
+        return ""
+
+
 def _validate_and_fix_cause_code(cause: str, code: str, valid_codes: set) -> str:
     """cause와 code 불일치 시 키워드 기반으로 code 보정."""
     c = (cause or "").strip().lower()
@@ -664,13 +1012,13 @@ def _validate_and_fix_cause_code(cause: str, code: str, valid_codes: set) -> str
 
 
 def _build_louvain_code_list():
-    """AI 오류 유형 분류용: code와 desc_ko만 사용. 분류 시 원인(cause)과 설명이 같은 오류 유형인 코드를 고르기 위함."""
+    """AI 오류 유형 분류용: code와 description만 사용. 분류 시 원인(cause)과 설명이 같은 오류 유형인 코드를 고르기 위함."""
     lines = []
     for row in _load_louvain_error_tags():
         code = row.get("code")
         if not code:
             continue
-        desc = (row.get("desc_ko") or "").strip()
+        desc = (row.get("description") or "").strip()
         part = f"{code}: {desc}" if desc else code
         lines.append(part)
     return "\n".join(lines)
@@ -679,7 +1027,7 @@ def _build_louvain_code_list():
 def api_call_classify_errors_to_louvain_batch(
     errors, corrections_map, classification_by_id
 ):
-    """오류별 (sentence, error_span, correction)을 주고, 먼저 correction 원인을 기술한 뒤 그에 맞는 louvain 코드를 반환. {error_id: code}."""
+    """오류별 sentence, error_span, correction, description을 주고 Louvain 코드를 반환. {error_id: code}."""
     if not errors:
         return {}
     code_list = _build_louvain_code_list()
@@ -702,20 +1050,23 @@ def api_call_classify_errors_to_louvain_batch(
                 "sentence": (e.get("sentence") or "").strip(),
                 "error_span": (e.get("error_span") or "").strip(),
                 "correction": (correction or "").strip(),
+                "description": (e.get("description") or "").strip(),
             }
         )
     errors_json = json.dumps(payload, ensure_ascii=False)
-    prompt = f"""아래는 ESL 학생 작문의 오류 목록입니다. 각 항목에는 sentence, error_span, correction이 있습니다.
+    prompt = f"""아래는 ESL 학생 작문의 오류 목록입니다. 각 항목에는 sentence, error_span, correction, **description**(오류 탐지 시스템이 붙인 설명)이 있습니다.
 
-**1단계**: 각 오류에 대해, correction을 왜 그렇게 했는지 **원인(문법 규칙·이유)**을 한 문장으로 기술하세요.
+**0단계(필수)**: 각 오류의 **description**을 반드시 읽고, 아래 목록의 각 코드 **description**과 어떤 유형이 같은지에 초점을 맞추세요. 문장 표면이 비슷하다는 이유만으로 코드를 고르지 마세요.
+
+**1단계**: correction을 왜 그렇게 했는지 **원인(문법 규칙·이유)**을 한 문장으로 기술하세요. 이때 **description**과 모순되지 않게 하세요.
 예: "the date"→"for the date" → 원인: "동사 wait는 목적어 앞에 전치사 for가 필요하다"
 예: "it is cute too"→"it is too cute" → 원인: "부사 too는 형용사 앞에 와야 한다"
 예: "goods"→"good" → 원인: "철자 오류"
 예: "a apple"→"an apple" → 원인: "모음 앞에서는 an을 쓴다"
 
-**2단계**: 그 원인이 설명하는 오류 유형과 **같은 내용**을 다루는 코드를 아래 목록에서 하나 고르세요.
-- 원인과 설명(desc_ko)이 같은 오류 유형을 다루는 코드를 선택해야 합니다.
-- 단순히 correction에 포함된 단어(a, the 등)가 있어서가 아니라, **원인**에 맞는 코드를 고르세요.
+**2단계**: **오류 탐지 description**, **원인(cause)**, 아래 목록의 **코드별 description**이 서로 같은 오류 유형을 가리키는 코드를 하나 고르세요.
+- 세 가지(탐지 설명·원인·목록 설명)가 어긋나면 **목록의 코드 description**과 **탐지 description**을 우선 맞추세요.
+- 단순히 correction에 들어 있는 단어(a, the 등)만 보고 고르지 마세요.
 
 오류 유형 목록 (각 줄에 code: 설명):
 {code_list}
@@ -732,7 +1083,7 @@ def api_call_classify_errors_to_louvain_batch(
             messages=[
                 {
                     "role": "system",
-                    "content": "For each error: 1) State the CAUSE (why the correction was made—the grammar rule violated). 2) Pick the Louvain code whose description (설명) covers that SAME error type. Match by CAUSE, not by words in the correction. E.g. 'the date'→'for the date' cause: verb needs preposition 'for' → XVPR, not GA. Output only a valid JSON array of {error_id, cause, code}. Each code must be from the list.",
+                    "content": "For each error you MUST use the detector's `description` field together with sentence/error_span/correction. Pick the Louvain code whose list description matches the same error TYPE as that detector description (and your stated cause). Do not pick a code based only on surface similarity of words in the sentence. Output only a valid JSON array of {error_id, cause, code}. Each code must be from the list.",
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -951,6 +1302,8 @@ def get_feedback():
 
     # 원문 + 오류별 correction, 매칭된 질문·예문
     error_list = []
+    # 같은 요청에서 서로 다른 오류가 동일 expected_script 행(id)에 붙는 것 방지
+    used_expected_script_row_keys = set()
     for i, e in enumerate(errors):
         eid = e.get("id", i)
         c = classification_by_id.get(eid, {})
@@ -966,31 +1319,48 @@ def get_feedback():
         desc = (e.get("description") or "").strip()
         span = (e.get("error_span") or "").strip()
         sent = (e.get("sentence") or "").strip()
-        # AI 분류 코드로 먼저 매칭, 없으면 기존 키워드 매칭
+        # 질문 폴백용: Louvain 코드 → 키워드 CSV (단원 스크립트에 질문 없을 때만 사용)
         code = ai_codes.get(eid) or ai_codes.get(int(eid)) or ai_codes.get(str(eid))
         correction_cause = (
             ai_causes.get(eid) or ai_causes.get(int(eid)) or ai_causes.get(str(eid)) or ""
         )
-        matched = _get_louvain_row_by_code(code) if code else None
-        if not matched:
-            matched = _match_error_to_csv(desc, error_span=span, correction=correction)
-        question = (matched.get("question") or "").strip() if matched else ""
-        question_source = "csv" if (matched and question) else "ai"
+        # 단원 expected_script — KO·FS는 내용을 미리 적어둘 수 없어 스크립트 매칭 생략(Louvain·AI만).
+        matched_script = None
+        if code not in ("KO", "FS"):
+            matched_script = _match_expected_script(
+                span,
+                expected_script_rows,
+                sentence=sent,
+                used_row_keys=used_expected_script_row_keys,
+                api_error_description=desc,
+            )
+        question = ""
+        question_source = "ai"
         source_track = "unexpected_mapping"
-        matched_script = _match_expected_script(span, expected_script_rows)
+        example_sentences = []
         if matched_script:
             script_question = (matched_script.get("question") or "").strip()
+            script_examples = _parse_script_examples(
+                matched_script.get("example_sentences")
+            )
             if script_question:
                 question = script_question
                 question_source = "expected_script"
                 source_track = "expected_script"
-        example_sentences = []
-        if matched_script:
-            script_examples = _parse_script_examples(
-                matched_script.get("example_sentences")
-            )
             if script_examples:
-                example_sentences = [{"text": t, "source": "expected_script"} for t in script_examples]
+                example_sentences = [
+                    {"text": t, "source": "expected_script"} for t in script_examples
+                ]
+        # 스크립트에 질문이 없을 때만 Louvain(또는 설명 CSV)에서 질문
+        matched = _get_louvain_row_by_code(code) if code else None
+        if not matched:
+            matched = _match_error_to_csv(desc, error_span=span, correction=correction)
+        if not (question and question.strip()):
+            louvain_q = (matched.get("question") or "").strip() if matched else ""
+            if louvain_q:
+                question = louvain_q
+                question_source = "csv"
+                source_track = "unexpected_mapping"
         if code == "KO":
             # KO: AI 생성 예문 사용 (없으면 개별 재시도)
             ko_ex = (
@@ -1066,6 +1436,48 @@ def get_feedback():
                         existing_texts.add(t)
             except Exception:
                 pass
+        # 3·4단계 단서용 예문 텍스트 (5단계 보정·salvage에서 공통 사용)
+        ex_for_clues = [
+            _strip_bold_markers_for_prompt((ex.get("text") or "").strip())
+            for ex in example_sentences
+            if (ex.get("text") or "").strip()
+        ]
+        # 5단계 표시용 correction: 3·4단서(질문·예문)와 맞게 초안을 재정렬
+        if correction and span:
+            if (question and question.strip()) or ex_for_clues:
+                try:
+                    correction = api_call_refine_correction_with_clues(
+                        sentence=sent,
+                        error_span=span,
+                        draft_correction=correction,
+                        step3_question=question or "",
+                        step4_example_texts=ex_for_clues,
+                    )
+                except Exception as e:
+                    print(f"[get_feedback] 5단계 교정어 보정 실패(초안 유지): {e}")
+                # API 실패·모델 오류 시에도 예문 패턴과 맞추는 후처리 적용
+                correction = _postprocess_replacement_with_step4_examples(
+                    correction, span, ex_for_clues, sent
+                )
+                correction = _ensure_correction_is_replacement_only(correction, span)
+        # 교정어가 여전히 error_span과 동일 → span 오지정으로 치환이 불가했을 가능성 → 단서만으로 재생성
+        if (
+            span
+            and correction
+            and _text_same_ignore_case(correction, span)
+            and ((question and question.strip()) or ex_for_clues)
+        ):
+            try:
+                salvaged = api_call_salvage_correction_when_unchanged(
+                    sentence=sent,
+                    error_span=span,
+                    step3_question=question or "",
+                    step4_example_texts=ex_for_clues,
+                )
+                if salvaged:
+                    correction = salvaged
+            except Exception as e:
+                print(f"[get_feedback] 교정 salvage 실패(유지): {e}")
         error_list.append(
             {
                 "id": eid,

@@ -443,7 +443,7 @@
                     <textarea id="writing" class="memo-box" placeholder="여기에 글을 써 보세요!" required></textarea>
                 </div>
                 <div class="memo-transfer-col">
-                    <button type="button" id="moveRewriteToWritingBtn" class="memo-transfer-btn" aria-label="고쳐쓰기를 끄적끄적으로 이동" title="고쳐 쓴 글을 끄적끄적으로 이동해서 다시 확인해요.">←</button>
+                    <button type="button" id="moveRewriteToWritingBtn" class="memo-transfer-btn" aria-label="고쳐쓰기 내용을 끄적끄적에 덮어쓰기 (고쳐쓰기는 그대로 유지)" title="끄적끄적 칸만 고쳐쓰기와 같게 바꿔요. 고쳐쓰기 칸은 비우지 않아요.">←</button>
                 </div>
                 <div class="memo-col">
                     <div class="topic-row">
@@ -652,13 +652,14 @@
         document.getElementById('moveRewriteToWritingBtn').addEventListener('click', function () {
             var writingEl = document.getElementById('writing');
             var rewriteEl = document.getElementById('rewrite');
-            var rewriteText = (rewriteEl.value || '').trim();
-            if (!rewriteText) {
+            // trim은 빈칸 검사용만 쓰고, 끄적끄적에 넣을 때는 원문 그대로 반영(공백·줄바꿈 유지)
+            var rewriteTextTrimmed = (rewriteEl.value || '').trim();
+            if (!rewriteTextTrimmed) {
                 alert('고쳐쓰기에 옮길 내용이 없어요.');
                 return;
             }
-            writingEl.value = rewriteText;
-            rewriteEl.value = '';
+            // 끄적끄적만 고쳐쓰기 내용으로 덮어쓰기 — 고쳐쓰기 textarea는 비우지 않음
+            writingEl.value = rewriteEl.value;
             writingEl.focus();
         });
 
