@@ -8,6 +8,8 @@ DATABASE_FILE = os.path.join(_this_dir, "key_expressions.db")
 
 # 예상 오류 스크립트 CSV 캐시: 경로 -> (mtime, 파싱된 행 dict 목록)
 _expected_script_csv_cache = {}
+# 단원 한국어 글 CSV 캐시: 경로 -> (mtime, 파싱된 행 dict 목록)
+_unit_korean_text_csv_cache = {}
 
 
 def _expected_error_scripts_csv_path(grade):
@@ -16,6 +18,14 @@ def _expected_error_scripts_csv_path(grade):
     if g not in ("5학년", "6학년"):
         return None
     return os.path.join(_this_dir, "data", f"expected_error_scripts_{g}.csv")
+
+
+def _unit_korean_texts_csv_path(grade):
+    """5학년/6학년 단원 한국어 글 CSV 경로. 그 외 학년은 None."""
+    g = (grade or "").strip()
+    if g not in ("5학년", "6학년"):
+        return None
+    return os.path.join(_this_dir, "data", f"unit_korean_texts_{g}.csv")
 
 
 def _load_all_rows_from_expected_script_csv(csv_path):
@@ -43,6 +53,41 @@ def _load_all_rows_from_expected_script_csv(csv_path):
         _expected_script_csv_cache[csv_path] = (file_mtime, [])
         return []
     _expected_script_csv_cache[csv_path] = (file_mtime, rows_out)
+    return rows_out
+
+
+def _load_all_rows_from_unit_korean_text_csv(csv_path):
+    """단원 한국어 글 CSV 전체 행을 읽어 캐시한다. 파일 없음/오류 시 빈 리스트."""
+    try:
+        file_mtime = os.path.getmtime(csv_path)
+    except OSError:
+        return []
+    cached = _unit_korean_text_csv_cache.get(csv_path)
+    if cached and cached[0] == file_mtime:
+        return cached[1]
+
+    # Publisher 컬럼은 대소문자/레거시(publisher) 모두 허용
+    required = ("unit", "korean_text")
+    rows_out = []
+    try:
+        try:
+            f = open(csv_path, "r", encoding="utf-8-sig", newline="")
+        except UnicodeDecodeError:
+            # CSV를 CP949로 저장한 경우도 허용
+            f = open(csv_path, "r", encoding="cp949", newline="")
+        with f:
+            reader = csv.DictReader(f)
+            fieldnames = tuple(reader.fieldnames or ())
+            has_publisher = ("Publisher" in fieldnames) or ("publisher" in fieldnames)
+            if not fieldnames or any(c not in fieldnames for c in required) or not has_publisher:
+                _unit_korean_text_csv_cache[csv_path] = (file_mtime, [])
+                return []
+            for row in reader:
+                rows_out.append(dict(row))
+    except OSError:
+        _unit_korean_text_csv_cache[csv_path] = (file_mtime, [])
+        return []
+    _unit_korean_text_csv_cache[csv_path] = (file_mtime, rows_out)
     return rows_out
 
 
@@ -212,10 +257,49 @@ def get_expected_error_scripts(grade, publisher, unit):
                 "error_description": (row.get("error_description") or "").strip(),
                 "question": question,
                 "example_sentences": (row.get("example_sentences") or "").strip(),
+                # 정확한 표현(5단계) 고정값: 없으면 빈 문자열
+                "correct_replacement": (row.get("correct_replacement") or "").strip(),
+                "correct_sentence": (row.get("correct_sentence") or "").strip(),
             }
         )
     matched.sort(key=lambda r: (r["id"], r["error_pattern"]))
     return matched
+
+
+def get_unit_korean_text(grade, publisher, unit):
+    """선택 학년 CSV에서 출판사/단원에 맞는 한국어 참고글 1개를 반환. 없으면 빈 문자열."""
+    g_sel = (grade or "").strip()
+    p_sel = (publisher or "").strip()
+    u_sel = (unit or "").strip()
+    csv_path = _unit_korean_texts_csv_path(g_sel)
+    if not csv_path or not os.path.isfile(csv_path):
+        return ""
+
+    raw_rows = _load_all_rows_from_unit_korean_text_csv(csv_path)
+    if not raw_rows:
+        return ""
+
+    def _normalize_unit_text(unit_text):
+        """단원 표기를 비교용으로 정규화. 예: '1단원' == '1'."""
+        s = (unit_text or "").strip()
+        if not s:
+            return ""
+        s = s.replace("단원", "").strip()
+        return s
+
+    selected_unit_normalized = _normalize_unit_text(u_sel)
+    for row in raw_rows:
+        row_pub = (row.get("Publisher") or row.get("publisher") or "").strip()
+        row_unit_raw = (row.get("unit") or "").strip()
+        row_unit_normalized = _normalize_unit_text(row_unit_raw)
+        if row_pub != p_sel:
+            continue
+        if row_unit_raw != u_sel and row_unit_normalized != selected_unit_normalized:
+            continue
+        # 작성 규칙: 줄바꿈 구분자는 "|" 사용
+        text = (row.get("korean_text") or "").strip()
+        return text.replace("|", "\n").strip()
+    return ""
 
 
 if __name__ == "__main__":

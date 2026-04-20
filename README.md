@@ -24,7 +24,7 @@
 프로젝트 폴더에서 아래를 **순서대로** 실행하세요.
 
 ```bash
-cd "c:\Users\이원지\Desktop\CURSOR\AI-DDL Writing"
+cd "c:\Users\이원지\Desktop\CURSOR\Clue-Writing"
 
 # 1) Git 사용자 설정 (한 번만 하면 됨)
 git config --global user.email "your-email@example.com"
@@ -33,14 +33,14 @@ git config --global user.name "Your Name"
 # 2) 저장소 초기화 및 첫 커밋 (이미 .gitignore는 만들어 둠)
 git init
 git add -A
-git commit -m "Initial commit: AI-DDL Writing"
+git commit -m "Initial commit: Clue-Writing"
 
 # 3) GitHub에서 새 저장소 생성
-#    - https://github.com/new 에서 Repository name: AI-DDL-Writing (또는 AI-DDL-Writing)
+#    - https://github.com/new 에서 Repository name: Clue-Writing
 #    - Create repository 후 나오는 URL 복사
 
 # 4) 원격 저장소 연결 및 푸시
-git remote add origin https://github.com/YOUR_USERNAME/AI-DDL-Writing.git
+git remote add origin https://github.com/YOUR_USERNAME/Clue-Writing.git
 git branch -M main
 git push -u origin main
 ```

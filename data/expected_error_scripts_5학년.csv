@@ -1,4 +1,4 @@
-﻿id,grade,publisher,unit,error_pattern,error_description,question,example_sentences
+﻿id,grade,publisher,unit,error_pattern,error_description,question,example_sentences,correct_replacement,correct_sentence
 1,5학년,YBM(최희경),1단원,Where you are from?,An auxiliary verb is required before the subject in a wh-question.,"어느 나라에서 왔는지 물을 때, 단어의 순서는 어떻게 써야 할까요?","Where are you from? | Where are you from, Ryan? | Where are you from, Kevin? | Where are you from, Tom? | Where are you from, Mohan?"
 2,5학년,YBM(최희경),1단원,I am Korea.,The preposition “from” is required when referring to a country of origin.,"어느 나라에서 왔는지 말할 때, '~로부터'라는 의미의 어떤 단어가 필요할까요?","I’m from Korea. | I am from Korea. | I'm from Busan, Korea. | My name is Horan. I’m from Korea. | I’m Jiho from Korea."
 3,5학년,YBM(최희경),1단원,I’m from the Korea.,Country names such as Korea are normally used without the definite article.,나라 이름 앞에는 불필요한 단어가 있지 않나요?,I’m from Korea. | I’m from France. | I’m from Brazil. | I’m from Thailand. | I’m from the U.K

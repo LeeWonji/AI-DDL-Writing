@@ -1,5 +1,6 @@
 import json
 import os
+import random
 import re
 import time
 import unicodedata
@@ -11,6 +12,7 @@ import pandas as pd
 from database import (
     init_db,
     get_expected_error_scripts,
+    get_unit_korean_text,
 )
 
 app = Flask(__name__)
@@ -68,7 +70,9 @@ def _openai_chat_with_retry(
 
 CORPUS_DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 LOUVAIN_TAG_EXAMPLES_PATH = os.path.join(CORPUS_DATA_DIR, "louvain_tag_examples.csv")
+RANDOM_TOPICS_PATH = os.path.join(CORPUS_DATA_DIR, "random_topics_ko.txt")
 _louvain_cache = None
+_random_topics_cache = None
 
 
 def _cell_str(val):
@@ -121,6 +125,41 @@ def _load_louvain_error_tags():
         print(f"[louvain_tag_examples] 로드 실패: {e}")
         _louvain_cache = []
         return []
+
+
+def _load_random_topics():
+    """미리 준비한 주제 목록 로드. 비어 있거나 파일이 없으면 기본 목록으로 대체."""
+    global _random_topics_cache
+    if _random_topics_cache is not None:
+        return _random_topics_cache
+
+    fallback_topics = [
+        "나의 주말 일과",
+        "내가 좋아하는 계절",
+        "우리 가족 소개",
+        "내가 가장 좋아하는 음식",
+        "학교에서 가장 즐거운 시간",
+        "내가 가 보고 싶은 나라",
+        "나의 취미 생활",
+        "친구와 했던 재미있는 일",
+        "내가 키우고 싶은 반려동물",
+        "미래의 나에게 편지 쓰기",
+    ]
+
+    if not os.path.exists(RANDOM_TOPICS_PATH):
+        _random_topics_cache = fallback_topics
+        return _random_topics_cache
+
+    try:
+        with open(RANDOM_TOPICS_PATH, "r", encoding="utf-8-sig") as f:
+            rows = [line.strip() for line in f.readlines()]
+        topics = [t for t in rows if t and not t.startswith("#")]
+        _random_topics_cache = topics if topics else fallback_topics
+        return _random_topics_cache
+    except Exception as e:
+        print(f"[random_topics] 로드 실패: {e}")
+        _random_topics_cache = fallback_topics
+        return _random_topics_cache
 
 
 def _get_louvain_row_by_code(code):
@@ -267,6 +306,15 @@ def _normalize_for_script_description_match(text):
     return re.sub(r"\s+", " ", normalized)
 
 
+def _normalize_for_pattern_exact_match(text):
+    """error_pattern 정확 일치 비교용 정규화(공백/대소문자/문장부호 흔들림 완화)."""
+    if not text:
+        return ""
+    normalized = unicodedata.normalize("NFC", str(text)).strip().lower()
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized.rstrip(".!?")
+
+
 def _expected_script_row_key(row):
     """스크립트 행 구분 키(한 피드백에서 같은 행을 두 오류에 중복 배정하지 않기 위함)."""
     try:
@@ -338,6 +386,31 @@ def _match_expected_script(
     api_error_description=None,
 ):
     """패턴·설명으로 스크립트 행 선택. API에 description이 있으면 CSV error_description 없는 행은 후보에서 제외된다. used_row_keys가 있으면 이미 쓴 행은 건너뛴다."""
+    # 학생 문장을 error_pattern과 정확히 같게 쓴 경우는 최우선 매칭
+    sentence_norm = _normalize_for_pattern_exact_match(sentence)
+    span_norm = _normalize_for_pattern_exact_match(error_span)
+    exact_rows = []
+    for row in script_rows or []:
+        pattern = (row.get("error_pattern") or "").strip()
+        pattern_norm = _normalize_for_pattern_exact_match(pattern)
+        if not pattern_norm:
+            continue
+        if sentence_norm and pattern_norm == sentence_norm:
+            exact_rows.append(row)
+            continue
+        if span_norm and pattern_norm == span_norm:
+            exact_rows.append(row)
+    if exact_rows:
+        exact_rows.sort(key=lambda r: int(r.get("id", 0)) if str(r.get("id", "")).isdigit() else 0)
+        if used_row_keys is None:
+            return exact_rows[0]
+        for row in exact_rows:
+            key = _expected_script_row_key(row)
+            if key not in used_row_keys:
+                used_row_keys.add(key)
+                return row
+        return exact_rows[0]
+
     ranked = _rank_expected_script_matches(
         error_span,
         script_rows,
@@ -393,25 +466,12 @@ def home():
 
 @app.route("/api/random-topic", methods=["GET"])
 def api_random_topic():
-    """랜덤 글쓰기 주제 한 개를 OpenAI로 생성해 반환. 응답: { \"topic\": \"...\" }"""
-    prompt = """Give one short English writing topic for elementary or middle school ESL students.
-Reply with only the topic in one sentence or phrase, in Korean. No number, no explanation.
-Example: 나의 주말 일과, 내가 좋아하는 음식 소개하기"""
+    """미리 준비한 주제 목록에서 랜덤으로 1개 반환. 응답: { \"topic\": \"...\" }"""
     try:
-        response = _openai_chat_with_retry(
-            model="gpt-3.5-turbo",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You suggest one simple writing topic in Korean only. Output nothing but the topic text.",
-                },
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.8,
-            max_tokens=80,
-        )
-        raw = (response.choices[0].message.content or "").strip()
-        topic = raw.split("\n")[0].strip() if raw else ""
+        topics = _load_random_topics()
+        if not topics:
+            return jsonify({"error": "주제를 생성하지 못했습니다."}), 503
+        topic = random.choice(topics).strip()
         if not topic:
             return jsonify({"error": "주제를 생성하지 못했습니다."}), 503
         return jsonify({"topic": topic}), 200
@@ -447,6 +507,27 @@ def api_option_units():
     if grade not in GRADE_OPTIONS or publisher not in PUBLISHER_OPTIONS:
         return jsonify({"units": []}), 200
     return jsonify({"units": UNIT_OPTIONS}), 200
+
+
+@app.route("/api/unit-korean-text", methods=["GET"])
+def api_unit_korean_text():
+    """단원 한국어 참고글 반환. 응답: { "korean_text": "..." }"""
+    grade = (request.args.get("grade") or "").strip()
+    publisher = (request.args.get("publisher") or "").strip()
+    unit = (request.args.get("unit") or "").strip()
+    if not grade or not publisher or not unit:
+        return jsonify({"error": "grade, publisher and unit are required"}), 400
+    if grade not in GRADE_OPTIONS or publisher not in PUBLISHER_OPTIONS:
+        return jsonify({"korean_text": ""}), 200
+    try:
+        korean_text = get_unit_korean_text(grade, publisher, unit)
+        return jsonify({"korean_text": korean_text}), 200
+    except Exception as e:
+        print(f"[api/unit-korean-text] 실패: {e}")
+        return (
+            jsonify({"error": "한국어 글을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."}),
+            503,
+        )
 
 
 def _parse_json_from_response(content):
@@ -639,6 +720,7 @@ def api_call_1_extract_errors(writing):
 - 문법·철자·굴절·전치사 등 모든 영어 오류를 포함하세요.
 - **한글로 쓰인 부분**은 영어로 바꿔 써야 하므로 오류로 포함하세요. (예: "집" → description에 "한국어" 포함)
 - **error_span은 반드시 위 학생 작문 원문에 나온 문자열을 그대로 복사**하세요. (예: "thinked"가 있으면 error_span은 "thinked")
+- **빠진 단어(누락) 오류**에서는 빠진 단어 자체(원문에 없음)를 error_span으로 쓰지 말고, 원문에 있는 인접 구를 error_span으로 고르세요. 예: "What grade are you?"에서 in이 빠졌다면 error_span은 "are you" 또는 "What grade are you"처럼 원문에 있는 구.
 - **오류가 난 최소 범위**를 고르세요. `I like to + 동사원형`이 **하고 싶다/정중한 요청** 뜻인데 `I would like to`가 빠진 경우, 잘못된 부분은 보통 **"like" 또는 "I like"** 입니다. **"to have a cake" 같은 to부정식 구만** 잡지 마세요.
 응답은 반드시 아래 형태의 JSON 하나만 출력하세요. 다른 설명 없이 JSON만.
 {{"errors": [{{"id": 0, "sentence": "오류가 포함된 문장", "error_span": "원문과 동일한 문자열", "description": "오류 유형"}}, ...]}}"""
@@ -653,6 +735,7 @@ def api_call_1_extract_errors(writing):
                         "You are an expert ESL/EFL error detector. List every real error including: spelling, tense, grammar, and Korean that should be English. "
                         "Do NOT flag correct object pronouns after verbs/prepositions. "
                         "error_span must be the EXACT substring from the student text — choose the **minimal** wrong part. "
+                        "For missing-word errors, do NOT output the missing word itself as error_span; choose a nearby substring that actually exists in the student text. "
                         "For 'I like to + verb' meaning a wish/polite desire (same as 'I would like to'), the mistake is usually missing 'would': mark 'like' or 'I like', NOT the whole infinitive phrase 'to have ...'. "
                         "Reply with a single JSON object: {\"errors\": [...]}. No other text."
                     ),
@@ -692,6 +775,16 @@ def api_call_1_extract_errors(writing):
         for e in parsed:
             if not isinstance(e, dict):
                 continue
+            sentence = (
+                e.get("sentence")
+                or e.get("sentence_text")
+                or e.get("context")
+                or ""
+            )
+            if isinstance(sentence, str):
+                sentence = sentence.strip()
+            else:
+                sentence = ""
             span = None
             for key in span_keys:
                 val = e.get(key)
@@ -706,18 +799,11 @@ def api_call_1_extract_errors(writing):
                         span = _span_in_writing(val)
                         if span:
                             break
+            # 누락 오류 등으로 span이 원문에 없는 경우: 오류 문장이 원문에 있으면 문장 전체를 span으로 폴백
+            if not span:
+                span = _span_in_writing(sentence) if sentence else None
             if not span:
                 continue
-            sentence = (
-                e.get("sentence")
-                or e.get("sentence_text")
-                or e.get("context")
-                or ""
-            )
-            if isinstance(sentence, str):
-                sentence = sentence.strip()
-            else:
-                sentence = ""
             eid = e.get("id", len(out))
             out.append(
                 {
@@ -1151,6 +1237,78 @@ def get_feedback():
             503,
         )
 
+    expected_script_rows = []
+    if is_unit_mode:
+        try:
+            expected_script_rows = get_expected_error_scripts(
+                selected_grade, selected_publisher, selected_unit
+            )
+        except Exception as e:
+            print(f"[get_feedback] 예상 오류 스크립트 로드 실패: {e}")
+            expected_script_rows = []
+
+    # 단원 모드에서는 expected_script의 error_pattern이 원문에 정확히 있으면
+    # LLM이 놓친 오류를 보강해 매칭 누락을 줄인다.
+    if is_unit_mode and expected_script_rows and student_writing.strip():
+        writing_norm = _normalize_for_pattern_exact_match(student_writing)
+
+        def _existing_match_by_pattern(pattern_norm):
+            for er in errors:
+                sent_norm = _normalize_for_pattern_exact_match(er.get("sentence") or "")
+                span_norm = _normalize_for_pattern_exact_match(er.get("error_span") or "")
+                if sent_norm == pattern_norm or span_norm == pattern_norm:
+                    return True
+            return False
+
+        next_id_base = len(errors)
+        added_count = 0
+        for row in expected_script_rows:
+            pattern = (row.get("error_pattern") or "").strip()
+            if not pattern:
+                continue
+            pattern_norm = _normalize_for_pattern_exact_match(pattern)
+            if not pattern_norm:
+                continue
+            # 정확 일치(문장부호/공백/대소문자 보정)할 때만 보강 추가
+            if pattern_norm not in writing_norm:
+                continue
+            if _existing_match_by_pattern(pattern_norm):
+                continue
+            errors.append(
+                {
+                    "id": next_id_base + added_count,
+                    "sentence": pattern,
+                    "error_span": pattern,
+                    "description": (row.get("error_description") or "expected script pattern"),
+                }
+            )
+            added_count += 1
+        if added_count:
+            print(f"[get_feedback] expected_script 기반 오류 보강: +{added_count}건")
+
+    # 오류 목록을 원문 등장 순서로 정렬(보강으로 뒤에 붙은 오류도 문장 순서 유지)
+    if errors and student_writing.strip():
+        total_len = len(student_writing)
+
+        def _loc_in_writing(text):
+            t = (text or "").strip()
+            if not t:
+                return total_len + 1
+            idx = student_writing.find(t)
+            return idx if idx != -1 else total_len + 1
+
+        indexed_errors = list(enumerate(errors))
+        indexed_errors.sort(
+            key=lambda pair: (
+                min(
+                    _loc_in_writing(pair[1].get("sentence")),
+                    _loc_in_writing(pair[1].get("error_span")),
+                ),
+                pair[0],  # 동일 위치일 때 기존 순서 유지
+            )
+        )
+        errors = [e for _, e in indexed_errors]
+
     if not errors:
         if student_writing.strip():
             print(f"[get_feedback] 오류 0건 반환 (원문 길이: {len(student_writing)})")
@@ -1167,16 +1325,6 @@ def get_feedback():
             ),
             200,
         )
-
-    expected_script_rows = []
-    if is_unit_mode:
-        try:
-            expected_script_rows = get_expected_error_scripts(
-                selected_grade, selected_publisher, selected_unit
-            )
-        except Exception as e:
-            print(f"[get_feedback] 예상 오류 스크립트 로드 실패: {e}")
-            expected_script_rows = []
 
     try:
         # 단원/핵심 표현 없음 → 모든 오류를 일반 오류로 처리
@@ -1257,15 +1405,7 @@ def get_feedback():
             d = desc.lower()
             if "spelling" in d or "철자" in desc or "spell" in d or "typo" in d or "misspell" in d:
                 return True
-        # correction이 error_span과 같은 단어의 철자 수정인 경우 (편집 거리 1~2)
-        if error_span and correction and isinstance(error_span, str) and isinstance(correction, str):
-            sp, co = error_span.strip().lower(), correction.strip().lower()
-            if sp and co and len(sp) >= 2 and len(co) >= 2:
-                if sp == co:
-                    return True
-                diff = sum(1 for a, b in zip(sp, co) if a != b) + abs(len(sp) - len(co))
-                if diff <= 2 and len(sp) <= 20:
-                    return True
+        # 과도한 FS 강제 분류를 막기 위해 문자열 유사도 기반 추정은 사용하지 않는다.
         return False
 
     spelling_error_ids = []
@@ -1324,9 +1464,9 @@ def get_feedback():
         correction_cause = (
             ai_causes.get(eid) or ai_causes.get(int(eid)) or ai_causes.get(str(eid)) or ""
         )
-        # 단원 expected_script — KO·FS는 내용을 미리 적어둘 수 없어 스크립트 매칭 생략(Louvain·AI만).
+        # 단원 expected_script — KO만 스크립트 매칭 생략(번역 전용 흐름 유지)
         matched_script = None
-        if code not in ("KO", "FS"):
+        if code != "KO":
             matched_script = _match_expected_script(
                 span,
                 expected_script_rows,
@@ -1338,11 +1478,17 @@ def get_feedback():
         question_source = "ai"
         source_track = "unexpected_mapping"
         example_sentences = []
+        use_script_correction = False
         if matched_script:
             script_question = (matched_script.get("question") or "").strip()
             script_examples = _parse_script_examples(
                 matched_script.get("example_sentences")
             )
+            script_replacement = (matched_script.get("correct_replacement") or "").strip()
+            # 단원 CSV에 정답 치환어가 있으면 5단계 교정어를 고정한다.
+            if script_replacement:
+                correction = script_replacement
+                use_script_correction = True
             if script_question:
                 question = script_question
                 question_source = "expected_script"
@@ -1443,7 +1589,7 @@ def get_feedback():
             if (ex.get("text") or "").strip()
         ]
         # 5단계 표시용 correction: 3·4단서(질문·예문)와 맞게 초안을 재정렬
-        if correction and span:
+        if correction and span and not use_script_correction:
             if (question and question.strip()) or ex_for_clues:
                 try:
                     correction = api_call_refine_correction_with_clues(
@@ -1464,6 +1610,7 @@ def get_feedback():
         if (
             span
             and correction
+            and not use_script_correction
             and _text_same_ignore_case(correction, span)
             and ((question and question.strip()) or ex_for_clues)
         ):

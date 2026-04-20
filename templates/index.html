@@ -80,6 +80,29 @@
         .topic-btn { padding: 8px 14px; font-size: 0.9rem; }
         .topic-display { min-height: 24px; margin-bottom: 8px; font-size: 0.95rem; color: #5a6b8a; }
         .topic-display:not(:empty)::before { content: '오늘의 주제: '; font-weight: 600; color: #2c3e6b; }
+        .topic-display .topic-highlight-text {
+            display: inline-block;
+            border-radius: 8px;
+        }
+        .topic-display .topic-highlight-text.highlight {
+            background: #fff7d6;
+            padding: 4px 8px;
+            animation: topic-highlight-fade 1.2s ease-out;
+        }
+        @keyframes topic-highlight-fade {
+            0% {
+                background: #ffe79a;
+                box-shadow: 0 0 0 0 rgba(244, 165, 90, 0.28);
+            }
+            60% {
+                background: #fff2c0;
+                box-shadow: 0 0 0 8px rgba(244, 165, 90, 0.08);
+            }
+            100% {
+                background: transparent;
+                box-shadow: 0 0 0 0 rgba(244, 165, 90, 0);
+            }
+        }
         .scribble-hints { margin: 12px 0 0 0; font-size: 0.9rem; color: #5a6b8a; line-height: 1.6; }
         .selector-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; }
         .selector-row select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #c8d0e0; background: #fff; }
@@ -94,6 +117,12 @@
         .random-topic-row { display: flex; align-items: center; gap: 10px; margin: 0 0 6px 0; }
         .random-topic-row.hidden { display: none; }
         .random-topic-row .topic-display { margin-bottom: 0; flex: 1; min-height: 24px; }
+        .korean-view-toggle-label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; color: #3a4a69; user-select: none; cursor: pointer; }
+        .korean-view-toggle-label input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: #f4a55a; cursor: pointer; }
+        .unit-korean-reference { margin: 8px 0 8px 0; padding: 10px 12px; border: 1px solid #f2d6aa; border-radius: 10px; background: #fffaf2; }
+        .unit-korean-reference.hidden { display: none; }
+        .unit-korean-reference-title { margin: 0 0 6px 0; font-size: 0.88rem; font-weight: 700; color: #9a4a00; }
+        .unit-korean-reference-text { margin: 0; font-size: 0.92rem; color: #5a6b8a; white-space: pre-line; line-height: 1.55; }
         .title-keys { margin-left: 8px; font-size: 1.1rem; vertical-align: middle; }
         .pocket-fab {
             position: fixed;
@@ -439,6 +468,14 @@
                 <div class="memo-col">
                     <div class="topic-row">
                         <label for="writing" class="section-title">✏️ 끄적끄적</label>
+                        <label class="korean-view-toggle-label" for="showUnitKoreanTextCheckbox">
+                            <input type="checkbox" id="showUnitKoreanTextCheckbox" aria-label="한국어 글 보기">
+                            한국어 글 보기
+                        </label>
+                    </div>
+                    <div id="unitKoreanReferenceBox" class="unit-korean-reference hidden" aria-live="polite">
+                        <p class="unit-korean-reference-title">단원 한국어 참고 글</p>
+                        <p id="unitKoreanReferenceText" class="unit-korean-reference-text"></p>
                     </div>
                     <textarea id="writing" class="memo-box" placeholder="여기에 글을 써 보세요!" required></textarea>
                 </div>
@@ -476,8 +513,8 @@
         </form>
     </div>
     <footer class="page-footer">© 2026 Clue-Writing | 만든이: 이원지 | 문의: wjlee286@g.jbedu.kr</footer>
-    <button type="button" id="pocketFabBtn" class="pocket-fab" aria-label="글 주머니 열기">📚</button>
-    <button type="button" id="learningFabBtn" class="learning-fab" aria-label="배움 주머니 열기">💡</button>
+    <button type="button" id="pocketFabBtn" class="pocket-fab" aria-label="글 주머니 열기" title="글 주머니">📚</button>
+    <button type="button" id="learningFabBtn" class="learning-fab" aria-label="배움 주머니 열기" title="배움 주머니">💡</button>
     <div id="pocketPanel" class="pocket-panel hidden">
         <div class="pocket-header">
             <div class="pocket-title">📚 글 주머니</div>
@@ -515,7 +552,9 @@
     </div>
 
     <script>
-        var WRITING_POCKET_STORAGE_KEY = 'ai_ddl_writing_pocket';
+        // 글 주머니 localStorage 키 (Clue-Writing). 예전 키는 getWritingPocketItems에서 이전
+        var WRITING_POCKET_STORAGE_KEY = 'clue_writing_pocket';
+        var LEGACY_WRITING_POCKET_STORAGE_KEY = 'ai_ddl_writing_pocket';
         var currentWritingMode = 'free';
         var currentPocketPage = 1;
         var POCKET_PAGE_SIZE = 4;
@@ -523,6 +562,7 @@
         var LEARNING_PAGE_SIZE = 10;
         var pendingHighlightPocketIndex = -1;
         var selectedPocketItemIndexMap = {};
+        var unitKoreanTextCache = {};
 
         function renderOptions(selectEl, defaultLabel, values) {
             var html = '<option value="">' + defaultLabel + '</option>';
@@ -552,6 +592,7 @@
             unitSelect.disabled = true;
             renderOptions(publisherSelect, '출판사 선택', []);
             renderOptions(unitSelect, '단원 선택', []);
+            clearUnitKoreanReference();
             if (!grade) return;
             try {
                 var res = await fetch('/api/options/publishers?grade=' + encodeURIComponent(grade));
@@ -568,6 +609,7 @@
             var unitSelect = document.getElementById('unitSelect');
             unitSelect.disabled = true;
             renderOptions(unitSelect, '단원 선택', []);
+            clearUnitKoreanReference();
             if (!grade || !publisher) return;
             try {
                 var res = await fetch('/api/options/units?grade=' + encodeURIComponent(grade) + '&publisher=' + encodeURIComponent(publisher));
@@ -588,6 +630,9 @@
             var grade = document.getElementById('gradeSelect').value;
             await loadUnitOptions(grade, this.value);
         });
+        document.getElementById('unitSelect').addEventListener('change', async function () {
+            await refreshUnitKoreanReferenceIfNeeded();
+        });
 
         function setWritingMode(mode) {
             currentWritingMode = mode === 'unit' ? 'unit' : 'free';
@@ -599,6 +644,8 @@
             var gradeSelect = document.getElementById('gradeSelect');
             var publisherSelect = document.getElementById('publisherSelect');
             var unitSelect = document.getElementById('unitSelect');
+            var koreanToggle = document.getElementById('showUnitKoreanTextCheckbox');
+            var koreanBox = document.getElementById('unitKoreanReferenceBox');
 
             if (currentWritingMode === 'free') {
                 freeBtn.classList.add('active');
@@ -609,6 +656,8 @@
                 gradeSelect.disabled = true;
                 publisherSelect.disabled = true;
                 unitSelect.disabled = true;
+                koreanToggle.disabled = true;
+                koreanBox.classList.add('hidden');
             } else {
                 freeBtn.classList.remove('active');
                 unitBtn.classList.add('active');
@@ -618,6 +667,10 @@
                 gradeSelect.disabled = false;
                 publisherSelect.disabled = !gradeSelect.value;
                 unitSelect.disabled = !gradeSelect.value || !publisherSelect.value;
+                koreanToggle.disabled = false;
+                if (koreanToggle.checked) {
+                    refreshUnitKoreanReferenceIfNeeded();
+                }
             }
         }
 
@@ -627,23 +680,110 @@
         document.getElementById('unitModeBtn').addEventListener('click', function () {
             setWritingMode('unit');
         });
+        document.getElementById('showUnitKoreanTextCheckbox').addEventListener('change', function () {
+            if (this.checked) {
+                refreshUnitKoreanReferenceIfNeeded();
+                return;
+            }
+            clearUnitKoreanReference();
+        });
+
+        function clearUnitKoreanReference() {
+            var koreanBox = document.getElementById('unitKoreanReferenceBox');
+            var koreanText = document.getElementById('unitKoreanReferenceText');
+            koreanText.textContent = '';
+            koreanBox.classList.add('hidden');
+        }
+
+        function setUnitKoreanReferenceText(text) {
+            var koreanBox = document.getElementById('unitKoreanReferenceBox');
+            var koreanText = document.getElementById('unitKoreanReferenceText');
+            koreanText.textContent = text || '';
+            koreanBox.classList.remove('hidden');
+        }
+
+        function getCurrentUnitSelection() {
+            return {
+                grade: document.getElementById('gradeSelect').value || '',
+                publisher: document.getElementById('publisherSelect').value || '',
+                unit: document.getElementById('unitSelect').value || ''
+            };
+        }
+
+        async function refreshUnitKoreanReferenceIfNeeded() {
+            var koreanToggle = document.getElementById('showUnitKoreanTextCheckbox');
+            if (!koreanToggle.checked || currentWritingMode !== 'unit') {
+                clearUnitKoreanReference();
+                return;
+            }
+
+            var selected = getCurrentUnitSelection();
+            if (!selected.grade || !selected.publisher || !selected.unit) {
+                setUnitKoreanReferenceText('학년, 출판사, 단원을 먼저 선택해 주세요.');
+                return;
+            }
+
+            var cacheKey = selected.grade + '|' + selected.publisher + '|' + selected.unit;
+            if (Object.prototype.hasOwnProperty.call(unitKoreanTextCache, cacheKey)) {
+                var cachedText = unitKoreanTextCache[cacheKey];
+                setUnitKoreanReferenceText(cachedText || '등록된 한국어 참고글이 없습니다.');
+                return;
+            }
+
+            setUnitKoreanReferenceText('한국어 참고글을 불러오는 중이에요...');
+            try {
+                var res = await fetch(
+                    '/api/unit-korean-text?grade=' + encodeURIComponent(selected.grade) +
+                    '&publisher=' + encodeURIComponent(selected.publisher) +
+                    '&unit=' + encodeURIComponent(selected.unit)
+                );
+                var data = await res.json();
+                if (res.ok) {
+                    var loadedText = (data.korean_text || '').trim();
+                    unitKoreanTextCache[cacheKey] = loadedText;
+                    setUnitKoreanReferenceText(loadedText || '등록된 한국어 참고글이 없습니다.');
+                    return;
+                }
+                setUnitKoreanReferenceText('한국어 참고글을 불러오지 못했어요. 다시 시도해 주세요.');
+            } catch (e) {
+                setUnitKoreanReferenceText('한국어 참고글을 불러오지 못했어요. 다시 시도해 주세요.');
+            }
+        }
+
+        function setTopicDisplayText(displayEl, text, useHighlight) {
+            if (!displayEl) return;
+            displayEl.textContent = '';
+            if (!text) return;
+            var textEl = document.createElement('span');
+            textEl.className = 'topic-highlight-text';
+            textEl.textContent = text;
+            displayEl.appendChild(textEl);
+            if (useHighlight) {
+                textEl.classList.remove('highlight');
+                void textEl.offsetWidth;
+                textEl.classList.add('highlight');
+                window.setTimeout(function () {
+                    textEl.classList.remove('highlight');
+                }, 1300);
+            }
+        }
 
         document.getElementById('randomTopicBtn').addEventListener('click', async function () {
             var btn = this;
             var display = document.getElementById('topic-display');
             btn.disabled = true;
             btn.textContent = '생성 중...';
-            display.textContent = '';
+            setTopicDisplayText(display, '', false);
             try {
                 var res = await fetch('/api/random-topic');
                 var data = await res.json();
                 if (res.ok && data.topic) {
-                    display.textContent = data.topic;
+                    setTopicDisplayText(display, data.topic, true);
                 } else {
-                    display.textContent = '주제를 불러오지 못했어요. 다시 시도해 주세요.';
+                    setTopicDisplayText(display, '주제를 불러오지 못했어요. 다시 시도해 주세요.', true);
                 }
             } catch (e) {
-                display.textContent = '주제를 불러오지 못했어요.';
+                setTopicDisplayText(display, '주제를 불러오지 못했어요.', true);
             }
             btn.disabled = false;
             btn.textContent = '🎲 랜덤 주제';
@@ -666,9 +806,25 @@
         function getWritingPocketItems() {
             try {
                 var raw = localStorage.getItem(WRITING_POCKET_STORAGE_KEY);
-                if (!raw) return [];
-                var parsed = JSON.parse(raw);
-                return Array.isArray(parsed) ? parsed : [];
+                var parsed = raw ? JSON.parse(raw) : null;
+                var items = Array.isArray(parsed) ? parsed : [];
+                // 예전 프로젝트 키(ai_ddl_writing_pocket)에만 데이터가 있으면 새 키로 한 번 이전
+                if (items.length === 0) {
+                    try {
+                        var legacyRaw = localStorage.getItem(LEGACY_WRITING_POCKET_STORAGE_KEY);
+                        if (legacyRaw) {
+                            var legacyParsed = JSON.parse(legacyRaw);
+                            if (Array.isArray(legacyParsed) && legacyParsed.length > 0) {
+                                items = legacyParsed;
+                                saveWritingPocketItems(items);
+                                try {
+                                    localStorage.removeItem(LEGACY_WRITING_POCKET_STORAGE_KEY);
+                                } catch (e2) {}
+                            }
+                        }
+                    } catch (eLegacy) {}
+                }
+                return items;
             } catch (e) {
                 return [];
             }
@@ -1140,7 +1296,7 @@
             var url = URL.createObjectURL(blob);
             var a = document.createElement('a');
             a.href = url;
-            a.download = 'ai-ddl-writing-pocket-' + new Date().toISOString().slice(0, 10) + '.json';
+            a.download = 'clue-writing-pocket-' + new Date().toISOString().slice(0, 10) + '.json';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
